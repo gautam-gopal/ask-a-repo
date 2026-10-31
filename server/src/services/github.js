@@ -110,33 +110,79 @@ function mapError(res) {
   return new GithubError("UPSTREAM_ERROR", `GitHub returned status ${status}`);
 }
 
-async function githubGet(apiPath) {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Lowest x-ratelimit-remaining seen (it only falls within a window). Headers only, never the token.
+// list-repo.js uses it to measure how many requests a run cost.
+let rateLimit = { limit: null, remaining: null, reset: null };
+export function getRateLimit() {
+  return { ...rateLimit };
+}
+function trackRateLimit(res) {
+  const header = res.headers.get("x-ratelimit-remaining");
+  if (header === null) return;
+  const remaining = Number(header);
+  if (Number.isNaN(remaining)) return;
+  if (rateLimit.remaining === null || remaining < rateLimit.remaining) {
+    rateLimit = {
+      limit: Number(res.headers.get("x-ratelimit-limit")) || null,
+      remaining,
+      reset: Number(res.headers.get("x-ratelimit-reset")) || null,
+    };
+  }
+}
+
+// One attempt. err.details.retryable is true for network errors, timeouts and 5xx only.
+async function githubRequest(
+  apiPath,
+  { accept = "application/vnd.github+json", bytes = false } = {},
+) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const res = await fetch(API_BASE + apiPath, {
       headers: {
         Authorization: `Bearer ${config.GITHUB_TOKEN}`,
-        Accept: "application/vnd.github+json",
+        Accept: accept,
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "ask-a-repo",
       },
       signal: controller.signal,
     });
-    if (!res.ok) throw mapError(res);
-    return await res.json();
+    trackRateLimit(res);
+    if (!res.ok) {
+      const err = mapError(res);
+      err.details.retryable = res.status >= 500;
+      throw err;
+    }
+    return bytes ? new Uint8Array(await res.arrayBuffer()) : await res.json();
   } catch (err) {
     if (err instanceof GithubError) throw err;
-    // Network error, timeout or bad JSON. Never include err or headers: keep the token out.
+    // Network error, timeout or bad body. Never include err or headers: keep the token out.
     throw new GithubError(
       "UPSTREAM_ERROR",
       "Could not get a valid response from GitHub",
+      { retryable: true },
     );
   } finally {
     clearTimeout(timer);
   }
 }
 
+// Retries only when asked (retries > 0) and only for retryable errors.
+// 404, rate limits and other 4xx are never retried. Backoff: base * 2^attempt, with jitter.
+async function githubGet(apiPath, opts = {}) {
+  const { retries = 0, backoffMs = 300, ...req } = opts;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await githubRequest(apiPath, req);
+    } catch (err) {
+      const retryable = err instanceof GithubError && err.details.retryable;
+      if (!retryable || attempt >= retries) throw err;
+      await sleep(backoffMs * 2 ** attempt * (0.5 + Math.random()));
+    }
+  }
+}
 const enc = encodeURIComponent;
 
 // ---- Resolve default branch + latest commit SHA ----
@@ -241,4 +287,105 @@ export function filterTree(entries) {
     );
   }
   return { files, totalBytes, skipped };
+}
+
+// ---- File contents ----
+const SHA_RE = /^[0-9a-f]{40}$/;
+const RAW_ACCEPT = "application/vnd.github.raw+json";
+const utf8 = new TextDecoder("utf-8", { fatal: true });
+
+// RATE LIMITS: each file is one authenticated REST call to api.github.com (Contents API, raw
+// media type, ref = commit SHA). It is NOT raw.githubusercontent.com. I believe it counts
+// against the token's primary REST limit (documented as 5,000 requests/hour for a user token),
+// so one ingest costs at most MAX_FILES + 3 = 153 requests.
+// UNSURE, verify in GitHub's docs: (1) the exact hourly limit for a fine-grained PAT,
+// (2) that raw-media-type responses count like normal ones, (3) secondary limits (concurrent
+// requests and per-minute caps). 5 concurrent requests should be far inside them.
+// Measure it: `list-repo.js <url> --fetch` prints requests used (from x-ratelimit-remaining).
+// Expect used == number of files fetched. GET /rate_limit shows your quota without costing any.
+export async function fetchFileContents(
+  owner,
+  repo,
+  sha,
+  files,
+  { concurrency = 5, retries = 2, backoffMs = 300 } = {},
+) {
+  if (!SHA_RE.test(sha)) {
+    throw new GithubError("UPSTREAM_ERROR", "Invalid commit SHA");
+  }
+  const results = new Array(files.length);
+  const skippedFiles = [];
+  let next = 0;
+  let stop = false; // set on a fatal error so the other workers stop making requests
+
+  async function worker() {
+    while (!stop) {
+      const i = next++;
+      if (i >= files.length) return;
+      const f = files[i];
+      try {
+        const apiPath = `/repos/${enc(owner)}/${enc(repo)}/contents/${f.path
+          .split("/")
+          .map(enc)
+          .join("/")}?ref=${sha}`;
+        const bytes = await githubGet(apiPath, {
+          accept: RAW_ACCEPT,
+          bytes: true,
+          retries,
+          backoffMs,
+        });
+        // The tree size is the blob's byte size, so compare bytes, not characters.
+        if (bytes.byteLength !== f.size) {
+          skippedFiles.push({ path: f.path, reason: "size_mismatch" });
+          continue;
+        }
+        // A NUL byte is valid UTF-8 but means binary, so treat it as not text.
+        let text;
+        try {
+          if (bytes.includes(0)) throw new Error("NUL byte");
+          text = utf8.decode(bytes);
+        } catch {
+          skippedFiles.push({ path: f.path, reason: "not_utf8" });
+          continue;
+        }
+        results[i] = { path: f.path, text };
+      } catch (err) {
+        stop = true;
+        throw err;
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, files.length) }, worker),
+  );
+
+  skippedFiles.sort((a, b) => a.path.localeCompare(b.path));
+  const skipped = { size_mismatch: 0, not_utf8: 0 };
+  for (const s of skippedFiles) skipped[s.reason]++;
+  return { files: results.filter(Boolean), skipped, skippedFiles };
+}
+
+// ---- Everything: URL -> files with text ----
+export async function loadRepo(url, opts) {
+  const parsed = parseRepoUrl(url);
+  const { owner, repo, branch, sha } = await resolveRepo(parsed);
+  const entries = await fetchTree(owner, repo, sha);
+  const tree = filterTree(entries);
+  const content = await fetchFileContents(owner, repo, sha, tree.files, opts);
+  if (content.files.length === 0) {
+    throw new GithubError(
+      "NO_SUPPORTED_FILES",
+      "No readable text files found (all were skipped)",
+      { skipped: { ...tree.skipped, ...content.skipped } },
+    );
+  }
+  return {
+    owner,
+    repo,
+    branch,
+    sha,
+    files: content.files,
+    skipped: { ...tree.skipped, ...content.skipped },
+  };
 }
