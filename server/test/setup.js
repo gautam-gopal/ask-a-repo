@@ -1,0 +1,10 @@
+import { vi, beforeEach } from "vitest";
+import { resetUsers } from "./fakeUser.js";
+
+// Applies to every test file: the real User model (and mongoose) is never loaded.
+vi.mock("../src/models/User.js", async () => {
+  const { fakeUser } = await import("./fakeUser.js");
+  return { User: fakeUser };
+});
+
+beforeEach(() => resetUsers());
