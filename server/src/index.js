@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import mongoose from "mongoose";
 import { config } from "./config.js";
+import cookieParser from "cookie-parser";
+import { User } from "./models/User.js";
+import { authRouter, meRouter } from "./routes/auth.js";
+import { notFound, errorHandler } from "./middleware/errors.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDist = path.resolve(here, "../../client/dist");
@@ -17,6 +21,8 @@ const DB_STATES = {
 
 const app = express();
 app.disable("x-powered-by");
+app.use(express.json({ limit: "10kb" }));
+app.use(cookieParser());
 
 app.get("/healthz", (_req, res) => {
   const db = DB_STATES[mongoose.connection.readyState] ?? "unknown";
@@ -24,6 +30,9 @@ app.get("/healthz", (_req, res) => {
     .status(200)
     .json({ status: "ok", db, uptime: Math.round(process.uptime()) });
 });
+
+app.use("/api/auth", authRouter);
+app.use("/api/me", meRouter);
 
 // Serve the built React app. Registered after /healthz, and future /api routes
 // must be mounted above this block. Unknown /api paths fall through to a 404.
@@ -43,6 +52,10 @@ if (fs.existsSync(path.join(clientDist, "index.html"))) {
   console.warn("client/dist not found: run `npm run build` to serve the UI");
 }
 
+// Must be last: JSON 404 for unknown routes, then the central error handler.
+app.use(notFound);
+app.use(errorHandler);
+
 async function main() {
   try {
     await mongoose.connect(config.MONGODB_URI, {
@@ -53,6 +66,8 @@ async function main() {
     process.exit(1);
   }
   console.log(`MongoDB connected (db: ${mongoose.connection.name})`);
+
+  await User.init(); // wait for the unique email index to exist before serving
 
   const server = app.listen(config.PORT, () => {
     console.log(`Server listening on port ${config.PORT} (${config.NODE_ENV})`);

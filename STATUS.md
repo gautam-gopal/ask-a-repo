@@ -2,29 +2,29 @@
 
 ## Current phase
 
-Phase 0 complete. Next: Phase 1 (authentication).
+Phase 1A complete (auth backend). Next: 1B (tests and Explain-back).
 
 ## What works
 
-- Live at https://ask-a-repo.onrender.com (Render free, auto-deploy from main).
-- GET /healthz returns 200 with db: connected.
-- Express serves the built React shell from client/dist and falls back to index.html for non-API GET routes; the shell shows live health status.
-- Env validation at boot (zod) for NODE_ENV, PORT, MONGODB_URI, JWT_SECRET; Atlas M0 connected (db: askarepo); network access 0.0.0.0/0 (DECISIONS.md D-002).
-- Render env: NODE_VERSION=22, NODE_ENV=production, MONGODB_URI, JWT_SECRET. PORT is injected by Render.
+- Live at https://ask-a-repo.onrender.com (Render free, auto-deploy from main). Phase 0 items unchanged: /healthz, React shell, env validation, Atlas M0.
+- POST /api/auth/signup (201, sets cookie), POST /api/auth/login (200, sets cookie), POST /api/auth/logout (clears cookie), GET /api/me (protected).
+- bcryptjs (cost 10), password min 8 chars / max 72 bytes. passwordHash is select:false and stripped in toJSON.
+- JWT HS256, 7 days, in httpOnly + SameSite=Lax cookie (Secure in production only). Logout clears it with the same options.
+- zod validate middleware; email trimmed and lowercased; unique email index (awaited at boot via User.init()).
+- Central error handler with { error: { code, message } }: 400 validation / invalid JSON, 401 auth, 409 duplicate email, 404 unknown route, 500 generic (no stack traces sent).
+- Login returns the same 401 for unknown email and wrong password, with a dummy-hash compare to even out timing.
+- SPA fallback does not shadow /api; unknown /api paths return JSON 404.
 
 ## What is broken
 
-- Nothing known. Known limitation: the first request after 15 idle minutes takes about a minute, and the UI cannot show a waking message on that first load.
-- No custom error handler yet (Phase 1).
+- Nothing known. Not yet verified on the Render deployment (Secure cookie over HTTPS). Check after pushing.
+- No automated tests yet (1B). No rate limiting (Phase 12). No refresh tokens (known limitation).
 
 ## Files added or changed
 
-- package.json (root), .gitignore, .env.example
-- server/package.json, server/package-lock.json, server/src/config.js, server/src/index.js
-- client/package.json, client/package-lock.json, client/vite.config.js, client/index.html, client/src/main.jsx, client/src/App.jsx, client/src/styles.css
-- Removed the stray ask-a-repo self-dependency from both package.json files.
-- DECISIONS.md: D-001, D-002
+- Added: server/src/models/User.js, server/src/middleware/{errors,validate,auth}.js, server/src/routes/auth.js
+- Changed: server/src/index.js (json, cookie-parser, route mounts, notFound + errorHandler, User.init), server/package.json and package-lock.json (bcryptjs, jsonwebtoken, cookie-parser)
 
 ## Next
 
-Phase 1: signup, login, logout, GET /api/me, bcryptjs, JWT in httpOnly cookie, zod, central error handler, auth middleware tests.
+Phase 1B: auth middleware tests (Vitest + supertest), Explain-back (cookie flags, why not localStorage, CSRF/SameSite), DECISIONS.md entries.
