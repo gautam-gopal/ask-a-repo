@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "ask-a-repo": "file:..",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
