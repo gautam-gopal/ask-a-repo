@@ -19,6 +19,9 @@ const schema = z.object({
       "must start with mongodb:// or mongodb+srv://",
     ),
   JWT_SECRET: z.string().min(32, "must be at least 32 characters"),
+  GITHUB_TOKEN: z
+    .string()
+    .min(1, "is required (fine-grained PAT, public repos read-only)"),
 });
 
 // Treat empty values (e.g. "PORT=") as unset so defaults apply.

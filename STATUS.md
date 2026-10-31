@@ -2,32 +2,35 @@
 
 ## Current phase
 
-Phase 1 complete (auth backend and tests). Next: Phase 2 (GitHub client).
+Phase 2A complete (GitHub URL parsing, repo resolution, tree fetch, filtering and caps). Next: Phase 2B.
 
 ## What works
 
-- Live at https://ask-a-repo.onrender.com (Render free, auto-deploy from main). Phase 0 items unchanged: /healthz, React shell, env validation, Atlas M0.
-- POST /api/auth/signup (201, sets cookie), POST /api/auth/login (200, sets cookie), POST /api/auth/logout (clears cookie), GET /api/me (protected).
-- bcryptjs (cost 10), password min 8 chars / max 72 bytes. passwordHash is select:false and stripped in toJSON.
-- JWT HS256, 7 days, in httpOnly + SameSite=Lax cookie (Secure in production only). Logout clears it with the same options.
-- zod validate middleware; email trimmed and lowercased; unique email index (awaited at boot via User.init()).
-- Central error handler with { error: { code, message } }: 400 validation / invalid JSON, 401 auth, 409 duplicate email, 404 unknown route, 500 generic (no stack traces sent).
-- Login returns the same 401 for unknown email and wrong password, with a dummy-hash compare to even out timing.
-- SPA fallback does not shadow /api; unknown /api paths return JSON 404.
-- Tests: `npm --prefix server test` runs 18 Vitest + supertest tests (auth middleware: no cookie, garbage token, wrong secret, expired, deleted user, valid; routes: signup, login, logout, duplicate, validation). User model is replaced by an in-memory fake, so no Atlas needed.
+- Live at https://ask-a-repo.onrender.com (Render free, auto-deploy from main). Phases 0 and 1 unchanged: /healthz, React shell, auth (signup, login, logout, /api/me), 18 auth tests.
+- server/src/services/github.js:
+  - parseRepoUrl: strict regex on the raw string; accepts only https://github.com/{owner}/{repo} with optional trailing slash or .git; rejects other hosts, http, userinfo, ports, extra paths, query, fragment, bad characters, ".", "..", ".git".
+  - resolveRepo: default branch and latest commit SHA; EMPTY_REPO handled.
+  - fetchTree: one recursive Git Trees call at the pinned SHA; TREE_TRUNCATED if GitHub truncates.
+  - filterTree: allowlist js/jsx/ts/tsx/json/md; denies node_modules, dist, build, coverage, .git, vendor, lock files, _.min.js, _.map; uses tree sizes; skipped counts by reason.
+  - Caps: MAX_FILES 150, MAX_FILE_BYTES 200 KB (skip, not error), MAX_TOTAL_BYTES 2 MB; REPO_TOO_LARGE with counts, NO_SUPPORTED_FILES when nothing is kept.
+  - GithubError with codes INVALID_URL, REPO_NOT_FOUND, RATE_LIMITED (with reset time), TREE_TRUNCATED, REPO_TOO_LARGE, EMPTY_REPO, NO_SUPPORTED_FILES, UPSTREAM_ERROR. The token is never put in errors.
+  - All calls use built-in fetch, a 10 s AbortController timeout and a Bearer GITHUB_TOKEN.
+- server/scripts/list-repo.js <url> prints repo, branch, SHA, kept files and bytes, 10 largest files, skipped counts.
+- GITHUB_TOKEN is required in config.js and listed in .env.example.
+- Unit tests for parseRepoUrl (valid and hostile inputs) and filterTree (allowlist, denylist, lock and minified, size skip, caps).
 
 ## What is broken
 
-- Nothing known. Secure cookie over HTTPS on Render not yet verified by hand.
-- Tests use a fake User model: they do not prove the real unique index or select:false behaviour.
-- No CI yet (Phase 12). No rate limiting (Phase 12). No refresh tokens (known limitation).
-- DECISIONS.md has no auth entries yet (cookie vs localStorage, no refresh token, cost 10).
+- Nothing known. The GitHub calls have only been checked by running list-repo.js by hand; there are no mocked-fetch tests yet (2B).
+- GITHUB_TOKEN must also be set in Render's environment, or the deploy crashes at boot.
+- File contents are not fetched yet. No retries. How raw downloads count against GitHub rate limits is still to be verified.
+- DECISIONS.md has no Phase 2 entries yet (URL regex vs new URL(), caps values, skip-vs-fail for large files).
 
 ## Files added or changed
 
-- Added: server/vitest.config.js, server/test/{setup,fakeUser,app}.js, server/test/auth.middleware.test.js, server/test/auth.routes.test.js
-- Changed: server/package.json (test script, devDependencies vitest and supertest), server/package-lock.json
+- Added: server/src/services/github.js, server/scripts/list-repo.js, server/test/github.test.js
+- Changed: server/src/config.js (GITHUB_TOKEN), .env.example, server/vitest.config.js (test GITHUB_TOKEN)
 
 ## Next
 
-Phase 2: services/github.js (strict URL parsing, default branch and commit SHA, tree fetch, filters and caps, typed errors) with URL-parsing unit tests.
+Phase 2B: fetch file contents at the pinned SHA, error hardening, mocked-fetch tests for resolveRepo, fetchTree and error mapping, then the Explain-back questions.
