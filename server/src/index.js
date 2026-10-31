@@ -1,6 +1,12 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import mongoose from "mongoose";
 import { config } from "./config.js";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const clientDist = path.resolve(here, "../../client/dist");
 
 const DB_STATES = {
   0: "disconnected",
@@ -18,6 +24,24 @@ app.get("/healthz", (_req, res) => {
     .status(200)
     .json({ status: "ok", db, uptime: Math.round(process.uptime()) });
 });
+
+// Serve the built React app. Registered after /healthz, and future /api routes
+// must be mounted above this block. Unknown /api paths fall through to a 404.
+if (fs.existsSync(path.join(clientDist, "index.html"))) {
+  app.use(express.static(clientDist));
+  app.use((req, res, next) => {
+    if (
+      req.method !== "GET" ||
+      req.path === "/healthz" ||
+      req.path.startsWith("/api")
+    ) {
+      return next();
+    }
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+} else {
+  console.warn("client/dist not found: run `npm run build` to serve the UI");
+}
 
 async function main() {
   try {
