@@ -2,41 +2,35 @@
 
 ## Current phase
 
-Phase 3 complete (chunker). Next: Phase 4A — Cloudflare embeddings service.
+Phase 4A complete (embeddings service). Next: Phase 4B — Chunk model, Atlas vector index, manual vector search.
 
 ## What works
 
-- Live at https://ask-a-repo.onrender.com (Render free, auto-deploy from main). Phases 0 to 2 unchanged: /healthz, React shell, auth (signup, login, logout, /api/me), GitHub client (parseRepoUrl, resolveRepo, fetchTree, filterTree, fetchFileContents, loadRepo).
-- `server/src/services/chunker.js`:
-  - `chunkFile({ path, text }, { windowLines = 50, overlapLines = 10, maxChunkChars = 1500 })`: pure; returns `[{ path, startLine, endLine, text, embedText }]`.
-  - Line numbers are 1-based and inclusive. CRLF and CR become LF. One trailing newline is not a line. Blank-only chunks are skipped.
-  - The final window reaching the end of the file stops the loop, so there is no tiny contained tail.
-  - A window that exceeds `maxChunkChars` is shortened at a line boundary (minimum 1 line). A single over-long line is split into segments that keep its line number. If the cap shortens a window so the overlap would add no new line, the overlap is skipped at that boundary.
-  - Invalid options throw RangeError. `splitLines` is exported for the script and tests.
-  - `chunkRepo(files, options)` returns `{ chunks, stats: { files, chunks, avgChars, maxChars } }`.
-- `server/scripts/chunk-repo.js <url> [--window N] [--overlap M]`: loads a repo, chunks it, prints stats and the first 2 chunks, and self-checks text-matches-range and full coverage of non-blank lines (PASS or first failure).
-- Tests: 126 total (94 earlier plus 32 chunker tests), all passing, no network.
-- `DECISIONS.md` has D-001 to D-018.
+- Live at https://ask-a-repo.onrender.com (Render free, auto-deploy from main). Phases 0 to 3 unchanged: /healthz, React shell, auth, GitHub client, chunker (defaults 50 / 10 / 1500).
+- `server/src/services/embeddings.js` (Cloudflare Workers AI, `@cf/baai/bge-base-en-v1.5`, 768 dims, cls pooling; the only file that knows the provider):
+  - `embedDocuments(texts, options?)`: batches of 32, concurrency 2, 20 s timeout, up to 3 retries with jittered exponential backoff on network errors, timeouts, 429 and 5xx; honours Retry-After (waits over 30 s fail fast); results in input order; fails on count or dimension mismatch.
+  - `embedQuery(text, options?)`: optional BGE instruction prefix via `QUERY_PREFIX_ENABLED` (default false; Phase 10 tests it).
+  - `getUsage()` / `resetUsage()`: per-process ESTIMATE of tokens (chars/4) and neurons; `requests` = HTTP attempts including retries, `batches` = successful batches; truncation-risk counter for inputs over 1536 chars.
+  - `EmbeddingError` codes: AUTH_FAILED, RATE_LIMITED, QUOTA_EXHAUSTED, BAD_RESPONSE, DIMENSION_MISMATCH, UPSTREAM_ERROR, TIMEOUT. HTTP 408 / codes 3007 and 3008 map to TIMEOUT; quota exhaustion is Cloudflare error code 3036. Errors never contain the token or account id.
+- Config: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` (required); `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` (768), `QUERY_PREFIX_ENABLED` (optional).
+- `server/scripts/embed-smoke.js`: 3 docs + 1 query (4 embeddings), prints lengths, latency, cosine scores, estimated neurons.
+- Tests: 153 total (126 + 27 embeddings tests), all passing, no network.
+- `DECISIONS.md` has D-001 to D-022. `PROJECT.md` updated for Cloudflare.
 
 ## What is broken
 
-- Nothing known. `GITHUB_TOKEN` must be set in Render's environment, or the deploy crashes at boot.
-- GitHub rate-limit accounting for downloads is still an assumption (1 request per file). Verify with `list-repo.js --fetch` and correct the comment in `github.js` if it differs.
-- A 404 on a single file reports the generic "Repository not found, or it is private" message.
-- Chunking defaults (50 / 10 / 1500) are provisional and untuned until the Phase 10 evaluation.
-- The 1500-character cap does not guarantee that every chunk fits Cloudflare BGE-base's 512-token input limit. Phase 4A must handle oversized embedding inputs without silently truncating or losing source content.
-- Long-line segments can split a surrogate pair (accepted).
-- No ingestion route yet; nothing is stored.
+- Nothing known. `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` must be set in Render's environment, or the deploy crashes at boot.
+- Confirmed from Cloudflare docs and a live 3-text test: endpoint, array input, cls pooling, 768 dims, 512-token limit, 10,000 neurons/day, 3,000 requests/min. Still unconfirmed: max items per request (batch of 32 assumed safe), daily reset time (assumed 00:00 UTC).
+- Neuron usage is an estimate (chars/4 undercounts code). The API reports no usage.
+- The 512-token limit is not enforced. The 1500-char cap and 1536-char risk threshold are estimates; some chunks may be silently truncated by the model. Measured in Phase 10.
+- GitHub rate-limit accounting for downloads is still an assumption. A 404 on one file reports the generic message. Long-line segments can split a surrogate pair (accepted). Chunking defaults are untuned until Phase 10.
+- No Chunk model, no vector index, no ingestion route yet; nothing is stored.
 
 ## Files added or changed
 
-- Added: `server/scripts/chunk-repo.js`, `server/test/chunker.test.js`
-- Changed: `server/src/services/chunker.js` (default `maxChunkChars` updated from 4000 to 1500), `DECISIONS.md` (D-015 to D-018), `STATUS.md`
+- Added: `server/src/services/embeddings.js`, `server/test/embeddings.test.js`, `server/scripts/embed-smoke.js`
+- Changed: `server/src/config.js`, `server/vitest.config.js`, `.env.example`, `PROJECT.md`, `DECISIONS.md` (D-019 to D-022), `STATUS.md`
 
 ## Next
 
-**Phase 4A — Embeddings service:** Implement `embeddings.js` using Cloudflare Workers AI (`@cf/baai/bge-base-en-v1.5`, 768 dimensions, `cls` pooling), with batching, concurrency limits, timeouts, retries, configuration, mocked tests and a live smoke script.
-
-**Phase 4B — Vector storage and search:** Add the Chunk model, Atlas vector index on `chunks.embedding` with `repoId` as a filter field, and a manual `$vectorSearch` test using approximately 10 chunks.
-
-No ingestion route, background indexing or client changes in Phase 4. Those belong to Phase 5 and later.
+**Phase 4B — Vector storage and search:** Chunk model, Atlas vector index on `chunks.embedding` (cosine, 768 dims, `repoId` filter field), manual `$vectorSearch` over about 10 chunks. Check whether the vector index counts toward the 512 MB, and whether BSON float32 vectors are supported (about 3 KB per vector instead of 9.9 KB). No ingestion route, background indexing or client changes.

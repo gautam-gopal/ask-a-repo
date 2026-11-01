@@ -143,3 +143,33 @@
 - Decision: keep them until the Phase 10 evaluation. The evaluation will compare windows of 30, 50 and 100 lines, overlaps of 0, 10 and 20, and with versus without the path prefix.
 - Why: changing defaults without a baseline is guessing twice.
 - Risk: 1500 characters is a conservative estimate, not a guarantee of staying within the embedding model's 512-token input limit. Retrieval quality and chunk-size choices remain unmeasured.
+
+## D-019: Dropped Jina for Cloudflare Workers AI
+
+- Context: the Jina free key was exhausted (balance 0), so embeddings could not run.
+- Options considered: top up Jina; Gemini; in-process local model; Cloudflare Workers AI.
+- Decision: Cloudflare Workers AI. Free allowance of 10,000 neurons per day, no card.
+- Why: zero cost, a REST API (no server RAM or CPU), and the provider sits behind embeddings.js.
+- Trade-off: a daily allowance instead of a one-off balance; a 512-token input limit; no query mode.
+- What would change this: Cloudflare cutting the free allowance.
+
+## D-020: bge-base-en-v1.5, 768 dimensions, cls pooling, storage maths
+
+- Decision: `@cf/baai/bge-base-en-v1.5`, 768 dims, max 512 tokens, 6058 neurons per million input tokens. The 10,000 neurons/day allowance is about 1.65M tokens, roughly 3,800 to 4,400 chunks a day.
+- Storage: MongoDB stores a number array as BSON doubles: 8 bytes per value, plus 1 type byte and an index-string key per element. That is about 9.9 KB per 768-dim vector, plus about 1.3 KB for text and metadata, so about 11.2 KB per chunk. The 512 MB free tier holds roughly 45,000 chunks (indexes and the vector index not included). A max-size repo (2 MB of source) is about 1,500 chunks, about 17 MB.
+- Possible later saving: BSON binary float32 vectors (about 3 KB per vector). Check driver and Atlas support in 4B.
+- What would change this: the eval favouring another model, or storage pressure.
+
+## D-021: Batch and retry policy
+
+- Decision: batches of 32 (well below the documented per-request item cap, check current docs for the number, so a failed batch wastes little quota), concurrency 2, 20 s timeout, up to 3 retries with jittered exponential backoff on network errors, timeouts, 429 and 5xx. Retry-After is honoured, and a wait over 30 s fails fast.
+- Not retried: auth, quota exhausted, bad response, dimension mismatch. Retrying them only burns time.
+- Errors carry only the status and numeric Cloudflare codes. Never bodies, messages, the token or the account id.
+- What would change this: measured rate-limit behaviour in Phase 5.
+- Quota exhaustion is Cloudflare error 3036 (HTTP 429), never retried. HTTP 408 with 3007 or 3008 maps to TIMEOUT and is retried. getUsage().requests counts HTTP attempts, batches counts successes.
+
+## D-022: Provider isolation in embeddings.js
+
+- Decision: only embeddings.js knows about Cloudflare. The rest of the app uses embedDocuments, embedQuery, getUsage and EmbeddingError. Provider-specific codes become EmbeddingError codes inside the file.
+- Why: D-019 proved free tiers die. Swapping provider is a one-file change, plus a re-embed if dimensions change.
+- Known gap: the 512-token input limit is NOT enforced. The chunker's 1500-char cap and the 1536-char risk threshold are character-based estimates, not token guarantees; dense code can exceed 512 tokens under the cap and silently lose its tail. getUsage().truncationRisk counts inputs over 1536 chars but does not reject or split them. We do not claim every chunk fits. Phase 10 measures whether truncation hurts retrieval.

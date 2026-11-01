@@ -22,6 +22,21 @@ const schema = z.object({
   GITHUB_TOKEN: z
     .string()
     .min(1, "is required (fine-grained PAT, public repos read-only)"),
+  CLOUDFLARE_ACCOUNT_ID: z
+    .string()
+    .regex(/^[A-Za-z0-9]{1,64}$/, "is required (Cloudflare account id)"),
+  CLOUDFLARE_API_TOKEN: z
+    .string()
+    .min(1, "is required (Workers AI read/run token)"),
+  EMBEDDING_MODEL: z
+    .string()
+    .regex(/^@cf\/[A-Za-z0-9._\/-]+$/, "must look like @cf/vendor/model")
+    .default("@cf/baai/bge-base-en-v1.5"),
+  EMBEDDING_DIMENSIONS: z.coerce.number().int().min(1).default(768),
+  QUERY_PREFIX_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 // Treat empty values (e.g. "PORT=") as unset so defaults apply.

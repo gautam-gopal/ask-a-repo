@@ -29,9 +29,9 @@ If the plan and reality disagree, update this file first, then the code.
 
 **Why this project**
 
-- *Testable live.* An interviewer can paste any repo and ask a question. Screenshots cannot compete with that.
-- *Real engineering problems.* Async ingestion, chunking, retrieval quality, rate limits and storage caps are all things you can discuss from experience.
-- *Measurable.* A small evaluation harness produces a real number (hit@5) for the resume.
+- _Testable live._ An interviewer can paste any repo and ask a question. Screenshots cannot compete with that.
+- _Real engineering problems._ Async ingestion, chunking, retrieval quality, rate limits and storage caps are all things you can discuss from experience.
+- _Measurable._ A small evaluation harness produces a real number (hit@5) for the resume.
 
 **Primary goal.** A deployed project with no major bugs on the main flow, which the developer can explain in two minutes and defend for ten. Not perfection, not scale.
 
@@ -39,19 +39,19 @@ If the plan and reality disagree, update this file first, then the code.
 
 ## 2. Locked decisions
 
-| Layer | Choice | Why | Rejected |
-| --- | --- | --- | --- |
-| API | Node + Express | Matches the MERN stack being learned and targeted by the job search | Nest, Next.js: more concepts, no gain here |
-| Frontend | React + Vite, plain CSS | Fast to build, no SSR needed, no time lost on styling | CSS frameworks, component libraries |
-| Deploy shape | One service: Express also serves the built React app | One origin means no CORS and simple cookies; one free Render service | Vercel + Render split: CORS, two deploys |
-| Database | MongoDB Atlas M0 | Free, vector search built in, users and chunks live in one system | Pinecone, Chroma, pgvector: an extra service to host |
-| Embeddings | Jina API, behind `embeddings.js` | Free quota; an API keeps server RAM and CPU free | In-process local model (Render free is 512 MB, 0.1 CPU); Gemini (free tier cut and unstable) |
-| LLM | Groq: llama-3.3-70b, fallback llama-3.1-8b | Free, fast, OpenAI-compatible, supports streaming | Paid APIs |
-| Auth | JWT in an httpOnly cookie, bcryptjs, zod | JS cannot read the cookie, so XSS cannot steal it; same origin keeps it simple | localStorage tokens; native bcrypt (build issues) |
-| Hosting | Render free web service | Free, deploys from git. Cost: about 1 minute cold start after 15 idle minutes | Anything paid |
-| Tests / CI | Vitest, supertest, GitHub Actions | Free, standard, quick to set up | Heavy E2E tooling |
+| Layer        | Choice                                                                                                 | Why                                                                            | Rejected                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| API          | Node + Express                                                                                         | Matches the MERN stack being learned and targeted by the job search            | Nest, Next.js: more concepts, no gain here                                                                              |
+| Frontend     | React + Vite, plain CSS                                                                                | Fast to build, no SSR needed, no time lost on styling                          | CSS frameworks, component libraries                                                                                     |
+| Deploy shape | One service: Express also serves the built React app                                                   | One origin means no CORS and simple cookies; one free Render service           | Vercel + Render split: CORS, two deploys                                                                                |
+| Database     | MongoDB Atlas M0                                                                                       | Free, vector search built in, users and chunks live in one system              | Pinecone, Chroma, pgvector: an extra service to host                                                                    |
+| Embeddings   | Cloudflare Workers AI, `@cf/baai/bge-base-en-v1.5` (768 dims, 512-token input), behind `embeddings.js` | Free daily allowance (10,000 neurons); an API keeps server RAM and CPU free    | Jina (free key exhausted); in-process local model (Render free is 512 MB, 0.1 CPU); Gemini (free tier cut and unstable) |
+| LLM          | Groq: llama-3.3-70b, fallback llama-3.1-8b                                                             | Free, fast, OpenAI-compatible, supports streaming                              | Paid APIs                                                                                                               |
+| Auth         | JWT in an httpOnly cookie, bcryptjs, zod                                                               | JS cannot read the cookie, so XSS cannot steal it; same origin keeps it simple | localStorage tokens; native bcrypt (build issues)                                                                       |
+| Hosting      | Render free web service                                                                                | Free, deploys from git. Cost: about 1 minute cold start after 15 idle minutes  | Anything paid                                                                                                           |
+| Tests / CI   | Vitest, supertest, GitHub Actions                                                                      | Free, standard, quick to set up                                                | Heavy E2E tooling                                                                                                       |
 
-**Rule:** only `embeddings.js` knows about Jina and only `llm.js` knows about Groq. Free tiers change, and swapping a provider must be a one-file change.
+**Rule:** only `embeddings.js` knows about Cloudflare Workers AI and only `llm.js` knows about Groq. Free tiers change, and swapping a provider must be a one-file change.
 
 ## 3. Scope
 
@@ -145,7 +145,7 @@ ask-a-repo/
 
 ### Phase 2: GitHub client
 
-**Build.** `services/github.js`. Strictly parse the URL (`https://github.com/{owner}/{repo}` and nothing else). Resolve the default branch and its latest commit SHA. Fetch the whole file tree in one call using the Git Trees API with recursion. Filter with an allowlist (js, jsx, ts, tsx, json, md) and a denylist (node\_modules, dist, build, lock files, minified files). Enforce caps: about 150 files, about 200 KB per file, and a total size cap. Fetch file contents at the pinned SHA. Return typed errors for not found, private repo, truncated tree and rate limit. Use a GitHub personal access token from the environment.
+**Build.** `services/github.js`. Strictly parse the URL (`https://github.com/{owner}/{repo}` and nothing else). Resolve the default branch and its latest commit SHA. Fetch the whole file tree in one call using the Git Trees API with recursion. Filter with an allowlist (js, jsx, ts, tsx, json, md) and a denylist (node_modules, dist, build, lock files, minified files). Enforce caps: about 150 files, about 200 KB per file, and a total size cap. Fetch file contents at the pinned SHA. Return typed errors for not found, private repo, truncated tree and rate limit. Use a GitHub personal access token from the environment.
 
 **Why now.** Ingestion cannot be built or tested without real input. Doing this before the chunker means the chunker is tested on real code.
 
@@ -171,17 +171,17 @@ ask-a-repo/
 
 **Interview angle.** 'Why this chunking strategy and what did you try?' The eval gives you the real answer.
 
-### Phase 4: Embeddings and the vector index
+### Phase 4: Embeddings and the vector index (split: 4A service, 4B storage and search)
 
-**Build.** `services/embeddings.js` with `embedDocuments(texts)` and `embedQuery(text)`. Batch requests (32 to 64 texts each), retry with exponential backoff and jitter on 429 and 5xx, limit concurrency to 2, and set timeouts. Create the Atlas vector index on `chunks.embedding` (cosine, correct dimension count) with `repoId` as a filter field. Insert about 10 chunks by hand and run `$vectorSearch` manually.
+**Build.** 4A: `services/embeddings.js` with `embedDocuments(texts)` and `embedQuery(text)` on Cloudflare Workers AI (`@cf/baai/bge-base-en-v1.5`, 768 dims, cls pooling). Batches of 32, concurrency 2, per-request timeout, up to 3 retries with exponential backoff and jitter on network errors, 429 and 5xx, honouring Retry-After. A local neuron estimate, a typed `EmbeddingError`, mocked tests and a live smoke script. 4B: Chunk model, Atlas vector index on `chunks.embedding` (cosine, 768 dimensions) with `repoId` as a filter field, then insert about 10 chunks by hand and run `$vectorSearch` manually.
 
 **Why now.** This is the highest-risk unknown: free API behavior, index definition syntax, dimension mismatches. Prove it on 10 chunks before building a pipeline around it.
 
-**Decisions.** All provider calls live in one file. If the provider offers separate query and document modes, use them. Filter fields must be declared in the index definition or filtered queries fail. Cosine similarity is the standard for text embeddings and gives a normalized score you can threshold. Check the provider's current free limits when you sign up, because they change.
+**Decisions.** All provider calls live in one file. Cloudflare has no separate query mode, so the BGE query instruction prefix is a config flag (`QUERY_PREFIX_ENABLED`, default off) that the Phase 10 eval tests with and without. Filter fields must be declared in the index definition or filtered queries fail. Cosine similarity gives a normalized score you can threshold. The model reads at most 512 tokens and cuts the rest off silently. Chunks are capped at 1500 characters as an estimate of that limit, not a guarantee; dense code can still exceed it, so truncation risk is counted and measured in Phase 10. Re-check the provider's free limits, because they change.
 
-**Done when.** A hand-written query returns the right chunks in a sensible order, and a mocked 429 triggers the retry path in a test.
+**Done when.** 4A: tests green and the smoke script prints 768-length vectors. 4B: a hand-written query returns the right chunks in a sensible order.
 
-**Explain-back.** What an embedding is, what the index definition means (dimensions, cosine, filter field), and what `numCandidates` does.
+**Explain-back.** What an embedding is, what the index definition means (dimensions, cosine, filter field), what `numCandidates` does, and why the retry policy skips auth and quota errors.
 
 **Interview angle.** 'What is an embedding? Why cosine similarity? What breaks if dimensions mismatch?'
 
@@ -313,15 +313,15 @@ ask-a-repo/
 
 ## 7. Free-tier constraints and mitigations
 
-| Constraint | Effect | Mitigation |
-| --- | --- | --- |
-| Render free sleeps after 15 idle minutes, about 1 minute to wake | First request is slow | Waking message in the UI; open the link before any demo; client polling counts as traffic during indexing |
-| Render free: 512 MB RAM, 0.1 CPU | No heavy compute on the server | Embeddings through an API; small batches; streaming responses |
-| Atlas M0: 512 MB storage, 3 search or vector indexes | Storage and index limits | Repo and chunk caps; TTL cleanup; 2 indexes used, 1 spare |
-| Groq free: per-minute and per-day limits | Demo can hit limits | Per-user rate limit; 8B fallback; token-budgeted context |
-| Embedding provider free quota | Ingest can stall | Caps; retry with backoff; provider isolated in one file; re-check limits at sign-up |
-| GitHub API: 60 requests per hour unauthenticated | Ingest fails without a token | Personal access token; one tree call; pinned SHA |
-| Free tiers change without notice | Any piece can break | Provider modules plus env config; keep the stack swappable |
+| Constraint                                                             | Effect                                        | Mitigation                                                                                                                                          |
+| ---------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Render free sleeps after 15 idle minutes, about 1 minute to wake       | First request is slow                         | Waking message in the UI; open the link before any demo; client polling counts as traffic during indexing                                           |
+| Render free: 512 MB RAM, 0.1 CPU                                       | No heavy compute on the server                | Embeddings through an API; small batches; streaming responses                                                                                       |
+| Atlas M0: 512 MB storage, 3 search or vector indexes                   | Storage and index limits                      | Repo and chunk caps; TTL cleanup; 2 indexes used, 1 spare                                                                                           |
+| Groq free: per-minute and per-day limits                               | Demo can hit limits                           | Per-user rate limit; 8B fallback; token-budgeted context                                                                                            |
+| Cloudflare Workers AI: 10,000 neurons/day (about 1.6M bge-base tokens) | Ingest stops when the day's allowance is used | Caps; local neuron estimate; QUOTA_EXHAUSTED becomes a readable `failed` message; retry after reset; provider isolated in one file; re-check limits |
+| GitHub API: 60 requests per hour unauthenticated                       | Ingest fails without a token                  | Personal access token; one tree call; pinned SHA                                                                                                    |
+| Free tiers change without notice                                       | Any piece can break                           | Provider modules plus env config; keep the stack swappable                                                                                          |
 
 ## 8. Project instructions (paste into the Claude Project)
 

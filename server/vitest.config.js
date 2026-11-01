@@ -9,6 +9,9 @@ export default defineConfig({
       NODE_ENV: "test",
       MONGODB_URI: "mongodb://localhost:27017/askarepo-test",
       JWT_SECRET: "test-secret-test-secret-test-secret-1234",
+      GITHUB_TOKEN: "test-github-token-not-real",
+      CLOUDFLARE_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
+      CLOUDFLARE_API_TOKEN: "test-cf-token-not-real",
     },
   },
 });
