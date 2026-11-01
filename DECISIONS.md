@@ -76,3 +76,39 @@
 - Decision: no rate limiting yet. Phase 12 adds per-IP limits on auth routes and per-user limits elsewhere.
 - Why: keeps each phase small and finishable.
 - Risk: until then the endpoints can be hammered. Acceptable while there are no real users, but do not share the link widely before Phase 12.
+
+## D-010: Strict regex on the raw URL, not new URL()
+
+- Context: users supply a URL and the server then calls GitHub, so a loose parser could let a request go to another host.
+- Options considered: parse with new URL() and check the hostname; one strict regex on the raw string.
+- Decision: only https://github.com/{owner}/{repo} (optional trailing slash or .git) is accepted. Other hosts, http, extra path segments, queries, fragments, userinfo and ports are rejected before anything else happens.
+- Why: the rule is a single readable pattern, so the set of accepted inputs is easy to audit, and the server can only ever call api.github.com.
+- What would change this: needing to accept other URL forms (for example /tree/branch links).
+
+## D-011: Pin everything to one commit SHA, one recursive tree call
+
+- Context: the repo can change after indexing, and line-number citations must stay valid.
+- Decision: resolve the default branch to its latest commit SHA, fetch the whole tree with one recursive Git Trees call, and download every file at that SHA. A truncated tree is an error, not a partial index.
+- Why: citations link to blob URLs at the SHA, so they stay correct forever. One tree call means filtering and size checks need no downloads.
+- What would change this: repos too large for one tree response (they fail with TREE_TRUNCATED today).
+
+## D-012: Hard caps, skip large files, fail loudly on oversize repos
+
+- Context: free tiers limit storage, embedding quota and request time.
+- Decision: MAX_FILES 150, MAX_FILE_BYTES 200 KB, MAX_TOTAL_BYTES 2 MB. A single oversize file is skipped and reported. Too many files or bytes throws REPO_TOO_LARGE with the counts. Nothing is truncated silently.
+- Why: a skipped generated file should not block a whole repo, but quietly indexing half a repo would give wrong answers with no warning.
+- What would change this: a paid tier, or evidence from the eval that the caps drop useful files.
+
+## D-013: Contents API (raw media type) for file downloads, shared server token
+
+- Context: file contents must be fetched at a pinned SHA.
+- Decision: one Contents API request per file with the raw media type, using a read-only fine-grained token for public repos. Each download is checked: byte length must match the tree size, content must be strict UTF-8, and a NUL byte means binary.
+- Risk: one token serves every user, so all ingests share one hourly request budget. Cost per ingest is measured with the Requests used line from list-repo.js --fetch. Phase 12 per-user limits protect it.
+- What would change this: measured costs showing the budget is too tight, which would mean switching download route or adding caching.
+
+## D-014: Retry only transient failures
+
+- Context: free-tier networks and GitHub drop requests occasionally.
+- Decision: 5 concurrent downloads, 10 second timeout, up to 2 retries with jittered backoff on network errors and 5xx. 404 and rate limits fail immediately and stop the other workers.
+- Why: retrying a 404 or a rate limit only wastes budget and delays the error message.
+- Known gap: a 404 on one file reports the generic "not found, or private" message.
