@@ -112,3 +112,34 @@
 - Decision: 5 concurrent downloads, 10 second timeout, up to 2 retries with jittered backoff on network errors and 5xx. 404 and rate limits fail immediately and stop the other workers.
 - Why: retrying a 404 or a rate limit only wastes budget and delays the error message.
 - Known gap: a 404 on one file reports the generic "not found, or private" message.
+
+## D-015: Line-based windows with overlap
+
+- Context: citations need file and line ranges, and retrieval quality is capped by chunk quality.
+- Options considered: fixed character slices; line windows with overlap; AST or function-level chunks.
+- Decision: windows of N lines with M lines of overlap (step = N - M). Line numbers are 1-based and inclusive, and a chunk's text is exactly its source lines joined with LF. CRLF and CR are normalised first.
+- Why: code is line-oriented, character cuts split mid-line and lose the line mapping, and overlap keeps a function split across a boundary retrievable.
+- Trade-off: windows ignore syntax, so a chunk can start or end mid-function. Blank-only chunks are skipped.
+- What would change this: Phase 10 eval showing function-aware chunks retrieve better (stretch: AST chunking for JavaScript).
+
+## D-016: File path inside the embedded text
+
+- Context: a question like "where is auth handled" should match a file named auth.js even if its code never says "auth".
+- Decision: each chunk stores `text` (raw, shown to users and sent to the LLM) and `embedText` = "File: <path>" + LF + text (sent to the embedding model only).
+- Why: the path is real signal for the embedding, while the stored text stays exact for display and line citations.
+- What would change this: the Phase 10 with-and-without-path experiment showing no gain.
+
+## D-017: Character cap per chunk, long lines split into segments
+
+- Context: minified or generated lines can make 50 lines enormous, which breaks the embedding input limit.
+- Decision: maxChunkChars 4000. A window is shortened at a line boundary until it fits (minimum one line). A single over-long line is split into character segments that all keep that line's number.
+- Why: bounded input size without ever cutting a normal line. Citations stay valid because segments point at the right line.
+- Trade-off: segments do not overlap each other. If the cap shortens a window so the overlapped next window would add no new line, the overlap is skipped for that boundary. Segments can split a surrogate pair.
+- What would change this: embedding model limits differing from the guess, or the eval showing large chunks hurt.
+
+## D-018: Chunking defaults are untuned guesses
+
+- Context: 50 lines, overlap 10 and 4000 chars were chosen before any measurement.
+- Decision: keep them until the Phase 10 eval. The eval will compare windows of 30, 50 and 100 lines, overlaps of 0, 10 and 20, and with versus without the path prefix.
+- Why: changing defaults without a baseline is guessing twice.
+- Risk: no retrieval number backs these values yet, so do not quote them as tuned in the README or resume.
