@@ -173,3 +173,22 @@
 - Decision: only embeddings.js knows about Cloudflare. The rest of the app uses embedDocuments, embedQuery, getUsage and EmbeddingError. Provider-specific codes become EmbeddingError codes inside the file.
 - Why: D-019 proved free tiers die. Swapping provider is a one-file change, plus a re-embed if dimensions change.
 - Known gap: the 512-token input limit is NOT enforced. The chunker's 1500-char cap and the 1536-char risk threshold are character-based estimates, not token guarantees; dense code can exceed 512 tokens under the cap and silently lose its tail. getUsage().truncationRisk counts inputs over 1536 chars but does not reject or split them. We do not claim every chunk fits. Phase 10 measures whether truncation hurts retrieval.
+
+## D-023: Cosine similarity
+
+- Context: the vector index needs a similarity function, and the score must be usable as a threshold in Phase 7.
+- Options considered: cosine, euclidean, dotProduct.
+- Decision: cosine.
+- Why: BGE models are trained for cosine similarity, which ignores vector length, and Atlas returns it as a bounded score (I believe (1 + cosine) / 2, range 0 to 1; verify in Atlas docs) that can be thresholded.
+- Trade-off: BGE scores are compressed into a narrow band, so unrelated text can still score fairly high. The Phase 7 threshold must come from measured scores, not a guess.
+- What would change this: the Phase 10 eval favouring a different model or metric.
+
+## D-024: Index name, filter field and test-data design
+
+- Decision: one vector index `chunks_vector` on `chunks.embedding` (768 dims, cosine) with `repoId` declared as a filter field. This uses 1 of 3 free search indexes. Regular index on `repoId`; TTL index on `expiresAt` with expireAfterSeconds 0.
+- Why the filter is declared: $vectorSearch can only pre-filter on fields listed as type "filter" in the index. Pre-filtering keeps results to one repo instead of wasting candidates on other users' repos.
+- userId is not a filter field: ownership is checked against the repo document in the route (Phase 6), so the index stays minimal.
+- numCandidates is 100 in the 4B test script (only 10 documents). Phase 6 will use 10 to 20 times the limit.
+- embedding has select:false (about 9.9 KB per chunk) and a length validator against EMBEDDING_DIMENSIONS.
+- Test data: scripts/vector-test.js inserts 10 chunks under fixed dummy ids with expiresAt one day ahead, so the TTL removes them even if cleanup is forgotten.
+- Open: whether the vector index counts toward the 512 MB, and whether BSON float32 binary vectors work with the current driver. Not measurable on 10 documents; check in Atlas docs before Phase 5 sizing.
