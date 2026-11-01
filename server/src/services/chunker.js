@@ -2,7 +2,7 @@
 export const DEFAULTS = Object.freeze({
   windowLines: 50,
   overlapLines: 10,
-  maxChunkChars: 4000,
+  maxChunkChars: 1500,
 });
 
 // CRLF and CR become LF. Exactly one trailing newline is a terminator, not a line.

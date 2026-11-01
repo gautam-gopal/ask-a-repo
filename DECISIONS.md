@@ -132,14 +132,14 @@
 ## D-017: Character cap per chunk, long lines split into segments
 
 - Context: minified or generated lines can make 50 lines enormous, which breaks the embedding input limit.
-- Decision: maxChunkChars 4000. A window is shortened at a line boundary until it fits (minimum one line). A single over-long line is split into character segments that all keep that line's number.
+- Decision: maxChunkChars 1500. A window is shortened at a line boundary until it fits (minimum one line). A single over-long line is split into character segments that all keep that line's number.
 - Why: bounded input size without ever cutting a normal line. Citations stay valid because segments point at the right line.
 - Trade-off: segments do not overlap each other. If the cap shortens a window so the overlapped next window would add no new line, the overlap is skipped for that boundary. Segments can split a surrogate pair.
 - What would change this: embedding model limits differing from the guess, or the eval showing large chunks hurt.
 
 ## D-018: Chunking defaults are untuned guesses
 
-- Context: 50 lines, overlap 10 and 4000 chars were chosen before any measurement.
-- Decision: keep them until the Phase 10 eval. The eval will compare windows of 30, 50 and 100 lines, overlaps of 0, 10 and 20, and with versus without the path prefix.
+- Context: 50 lines, overlap 10 and 1500 characters are provisional settings chosen before retrieval evaluation.
+- Decision: keep them until the Phase 10 evaluation. The evaluation will compare windows of 30, 50 and 100 lines, overlaps of 0, 10 and 20, and with versus without the path prefix.
 - Why: changing defaults without a baseline is guessing twice.
-- Risk: no retrieval number backs these values yet, so do not quote them as tuned in the README or resume.
+- Risk: 1500 characters is a conservative estimate, not a guarantee of staying within the embedding model's 512-token input limit. Retrieval quality and chunk-size choices remain unmeasured.
