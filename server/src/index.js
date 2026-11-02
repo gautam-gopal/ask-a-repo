@@ -6,7 +6,6 @@ import mongoose from "mongoose";
 import { config } from "./config.js";
 import cookieParser from "cookie-parser";
 import { User } from "./models/User.js";
-import { User } from "./models/User.js";
 import { Repo } from "./models/Repo.js";
 import { Chunk } from "./models/Chunk.js";
 import { recoverInterruptedIngests } from "./services/ingest.js";
