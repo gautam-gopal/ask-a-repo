@@ -7,6 +7,8 @@ import { validate } from "../middleware/validate.js";
 import { AppError } from "../middleware/errors.js";
 import { startIngest, IngestError } from "../services/ingest.js";
 import { GithubError } from "../services/github.js";
+import { retrieve } from "../services/retrieve.js";
+import { EmbeddingError } from "../services/embeddings.js";
 
 const ACTIVE = ["queued", "indexing"];
 const ID_RE = /^[0-9a-f]{24}$/i;
@@ -29,6 +31,39 @@ const GITHUB_STATUS = {
   RATE_LIMITED: 503,
   UPSTREAM_ERROR: 502,
 };
+
+const searchSchema = z.object({
+  question: z.string().trim().min(1, "is required").max(500),
+});
+
+// Messages are authored here, never provider text.
+function mapEmbeddingError(err, res) {
+  if (!(err instanceof EmbeddingError)) return err;
+  if (err.code === "QUOTA_EXHAUSTED")
+    return new AppError(
+      503,
+      "QUOTA_EXHAUSTED",
+      "The daily embedding allowance is used up. It resets at midnight UTC. Try again later.",
+    );
+  if (err.code === "RATE_LIMITED") {
+    res.set("Retry-After", RETRY_AFTER_SECONDS);
+    return new AppError(
+      503,
+      "EMBEDDING_RATE_LIMITED",
+      "The embedding service is busy. Try again in a few minutes.",
+    );
+  }
+  return new AppError(
+    502,
+    "EMBEDDING_FAILED",
+    "Search failed. Try again later.",
+  );
+}
+
+function hitUrl(repo, h) {
+  const p = h.path.split("/").map(encodeURIComponent).join("/");
+  return `https://github.com/${repo.owner}/${repo.name}/blob/${repo.commitSha}/${p}#L${h.startLine}-L${h.endLine}`;
+}
 
 // Messages on IngestError and GithubError are authored in our own code, never provider text.
 function mapError(err, res) {
@@ -117,4 +152,35 @@ reposRouter.delete("/:id", async (req, res) => {
   await Repo.deleteOne({ _id: repo._id, userId: req.user._id });
   await Chunk.deleteMany({ repoId: repo._id }); // orphans (if this fails) expire via TTL
   res.json({ ok: true });
+});
+
+// Ownership and readiness are checked BEFORE any retrieval. Chunks of a deleted repo can
+// linger until their TTL, so this repo-document check (not the chunk data) is what makes
+// them unreachable: no repo document, no search.
+reposRouter.post("/:id/search", validate(searchSchema), async (req, res) => {
+  const repo = await findOwned(req);
+  if (repo.status !== "ready")
+    throw new AppError(
+      409,
+      "REPO_NOT_READY",
+      "This repository is not ready yet. Wait until indexing finishes.",
+    );
+  let hits;
+  try {
+    hits = await retrieve({ repoId: repo._id, query: req.body.question });
+  } catch (err) {
+    throw mapEmbeddingError(err, res);
+  }
+  res.json({
+    hits: hits.map((h) => ({
+      path: h.path,
+      startLine: h.startLine,
+      endLine: h.endLine,
+      text: h.text,
+      score: h.score,
+      mergedFrom: h.mergedFrom,
+      url: hitUrl(repo, h),
+    })),
+    repo: { id: String(repo._id), commitSha: repo.commitSha },
+  });
 });

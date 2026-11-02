@@ -2,7 +2,6 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { authRouter, meRouter } from "../src/routes/auth.js";
 import { notFound, errorHandler } from "../src/middleware/errors.js";
-import { authRouter, meRouter } from "../src/routes/auth.js";
 import { reposRouter } from "../src/routes/repos.js";
 
 // Same wiring as index.js, minus the DB connection and static serving.

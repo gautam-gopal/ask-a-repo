@@ -2,39 +2,37 @@
 
 ## Current phase
 
-Phase 5 complete (5A ingest pipeline, 5B HTTP routes). Next: Phase 6 — Retrieval.
+Phase 6 complete (retrieval). Next: Phase 7 — Answer generation.
 
 ## What works
 
-- Live at https://ask-a-repo.onrender.com (Render free, auto-deploy from main). Phases 0 to 4: /healthz, React shell, auth, GitHub client, chunker (defaults 50 / 10 / 1500), embeddings service (Cloudflare Workers AI, 768 dims), Chunk model, Atlas vector index `chunks_vector`.
-- Phase 5A: Repo model (7-day TTL, demo exempt), `services/ingest.js` (startIngest, runIngest, recoverInterruptedIngests, IngestError), `scripts/ingest-run.js`. Limits: MAX_REPOS_PER_USER 3, one active ingest per user, MAX_CONCURRENT_INGESTS 2, 10 minute limit. Failure deletes chunks and stores a fixed safe error. Boot recovery marks queued/indexing repos failed (INTERRUPTED).
-- Phase 5B: `server/src/routes/repos.js`, mounted at /api/repos above the SPA fallback, all behind requireAuth:
-  - `POST /` { url } -> 202 `{ repo }`. IngestError mapping: INVALID_URL 400; REPO_EXISTS, INGEST_IN_PROGRESS, REPO_LIMIT_REACHED 409; BUSY 503 with Retry-After 60. GithubError safety-net mapping (404, 503, 400, 502).
-  - `GET /` -> `{ repos }`, newest first. `GET /:id` -> `{ repo }` with progress and error, for polling.
-  - `DELETE /:id` -> `{ ok: true }`; deletes the repo, then its chunks. Queued or indexing returns 409 INGEST_IN_PROGRESS.
-  - Other users' repos and missing repos both return 404 REPO_NOT_FOUND. Malformed id returns 400 INVALID_ID.
-  - Public shape is an allowlist: id, owner, name, status, progress, error, fileCount, chunkCount, branch, commitSha, createdAt.
-- Fixed a duplicate `User` import in index.js.
-- Tests: all passing, no network. New: repos.routes.test.js (fake Repo and Chunk, mocked startIngest). fakeIngestModels.js gained `.sort()`.
-- `DECISIONS.md` has D-001 to D-033.
+- Live at https://ask-a-repo.onrender.com (Render free, auto-deploy from main). Phases 0 to 5: /healthz, React shell, auth, GitHub client, chunker (defaults 50 / 10 / 1500), embeddings service (Cloudflare Workers AI, 768 dims), Chunk model, Atlas vector index `chunks_vector`, ingest pipeline and repo routes.
+- Phase 5: Repo model (7-day TTL, demo exempt), `services/ingest.js`, limits (3 repos per user, one active ingest per user, 2 concurrent, 10 minute limit), boot recovery, `/api/repos` POST, GET, GET :id, DELETE behind requireAuth.
+- Phase 6: `services/retrieve.js` with `retrieve({ repoId, query, limit = 5 })` and pure `mergeAdjacentHits`. `$vectorSearch` with repoId filter inside the query, NUM_CANDIDATES 100, CANDIDATE_LIMIT 8, embedding `$unset`. Adjacent hits merged (overlap or touch), max score, no duplicated lines, MAX_MERGED_CHARS 4500, single-line hits (long-line segments) never merged. No score threshold.
+- Route `POST /api/repos/:id/search { question }` (1 to 500 chars): owner-checked 404, 409 REPO_NOT_READY before retrieval, EmbeddingError mapping (QUOTA_EXHAUSTED and RATE_LIMITED 503, others 502), allowlisted hits with SHA-pinned GitHub URLs, response `{ hits, repo: { id, commitSha } }`.
+- `scripts/retrieve-test.js` (single question, `--expect`, `--file` questions.json with hit@5 count): the seed for the Phase 10 eval.
+- Tests: all passing, no network. New: retrieve.test.js, search.routes.test.js. Fixed a duplicate import in test/app.js.
+- `DECISIONS.md` has D-001 to D-038.
 
 ## What is broken
 
-- Nothing known.
-- No rate limiting yet (Phase 12): POST /api/repos and auth routes can be hammered. Do not share the link widely.
-- No client UI for repos yet (Phase 8). No cancel button for an indexing repo (D-033).
-- GitHub failures (not found, private, rate limit) appear as a failed repo via polling, not as a POST error (D-032).
-- The 10 minute ingest limit is checked between stages and batches only, and has no test.
-- Recovery assumes a single instance (D-027). Concurrency and one-active-per-user live in process memory, so they break with more than one instance.
-- The fakes do not prove the real unique index, the TTL index or Mongoose behaviour; the ingest-run.js and live curl checks cover that.
-- Still unmeasured or unconfirmed: embedding batch limit (32 assumed safe), Cloudflare reset time (assumed 00:00 UTC), whether the vector index counts toward 512 MB, truncation at 512 tokens, GitHub download rate-limit accounting, score threshold, chunking defaults (Phase 10).
-- Updating isDemo on an existing repo must also $unset expiresAt (the hook only runs on create and save).
+- Nothing known. Phase 6 live checks (curl and retrieve-test.js) must be run by you.
+- No rate limiting yet (Phase 12): search embeds one query per call and spends the shared Cloudflare quota. Do not share the link widely.
+- No client UI yet (Phase 8). No cancel button for an indexing repo (D-033).
+- Search returns hits for off-topic questions: there is no threshold until Phase 10 calibration.
+- NUM_CANDIDATES 100, CANDIDATE_LIMIT 8 and MAX_MERGED_CHARS 4500 are untuned guesses.
+- Single-line chunks are never merged (D-036); no segment offset is stored.
+- Ownership relies on the route check; userId is not in the vector index (D-024).
+- Recovery and concurrency assume a single instance (D-027).
+- The fakes do not prove real Mongo behaviour, including `$vectorSearch`; the live checks cover that.
+- Still unmeasured or unconfirmed: embedding batch limit, Cloudflare reset time, whether the vector index counts toward 512 MB, truncation at 512 tokens, GitHub download rate-limit accounting, score threshold, chunking defaults (Phase 10).
+- Updating isDemo on an existing repo must also $unset expiresAt.
 
-## Files added or changed (5B)
+## Files added or changed (Phase 6)
 
-- Added: `server/src/routes/repos.js`, `server/test/repos.routes.test.js`
-- Changed: `server/src/index.js` (router mount, duplicate import fixed), `server/test/app.js`, `server/test/fakeIngestModels.js`, `server/src/services/ingest.js` (comment only), `DECISIONS.md` (D-031 to D-033), `STATUS.md`
+- Added: `server/src/services/retrieve.js`, `server/scripts/retrieve-test.js`, `server/test/retrieve.test.js`, `server/test/search.routes.test.js`
+- Changed: `server/src/routes/repos.js`, `server/test/app.js` (duplicate import), `DECISIONS.md` (D-034 to D-038), `STATUS.md`
 
 ## Next
 
-**Phase 6:** `services/retrieve.js` (embed query, `$vectorSearch` filtered by repoId inside the query, numCandidates 10 to 20 times the limit, dedupe overlapping chunks, top 5), an owner-checked retrieval route or script, a test that user B cannot query user A's repo, and a script that prints top chunks and scores for 10 known questions.
+**Phase 7:** `services/llm.js` (Groq, 70B with 8B fallback), token-budgeted prompt builder, `POST /api/repos/:id/ask` reusing `retrieve()`, citations `[n]`, `messages` collection, not-found path (threshold stays a placeholder until Phase 10).

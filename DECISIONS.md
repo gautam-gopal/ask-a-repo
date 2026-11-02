@@ -259,3 +259,36 @@
 - Order: delete the repo document first, then its chunks. If the second step fails, the orphan chunks expire through the shared TTL. The other order could leave a ready repo with no chunks.
 - Limit: no cancel button yet; the user waits for the job to finish or fail.
 - What would change this: an AbortController wired through runIngest, which would allow real cancellation.
+
+## D-034: Pre-filter on repoId inside $vectorSearch
+
+- Context: one shared index holds every user's chunks.
+- Decision: `filter: { repoId: { $eq: ObjectId } }` inside the `$vectorSearch` stage. repoId is converted to a real ObjectId because aggregate() does not cast.
+- Why: the filter applies during the nearest-neighbour search. A $match afterwards would take the top N over all repos, then discard most of them and return few or no results.
+- Trade-off: only fields declared as type "filter" in the index work (repoId is, D-024).
+- What would change this: filtering on more fields, which means editing the index definition.
+
+## D-035: numCandidates 100, candidate limit 8
+
+- Decision: NUM_CANDIDATES 100 (12.5x the limit, inside PROJECT.md's 10 to 20x), CANDIDATE_LIMIT 8, final DEFAULT_LIMIT 5. All named constants in retrieve.js.
+- Why: approximate search examines numCandidates neighbours and returns the best `limit`; more candidates give better recall and more latency. 8 raw hits leave room for merging down to 5.
+- Status: untuned guesses. The Phase 10 eval tests them.
+
+## D-036: Merge adjacent hits; long-line rule
+
+- Decision: hits in the same file whose ranges overlap or touch (next.start <= prev.end + 1) become one hit: combined range, max score, text with each line once, mergedFrom count. A merge that would exceed MAX_MERGED_CHARS (4500) is skipped.
+- Long-line rule: a hit with startLine === endLine is never merged. Segments of an over-long line share one line number, do not overlap, and carry no offset, so merging by line numbers would drop or misorder text.
+- Trade-off: a genuine one-line chunk is not merged with neighbours. Overlap creates near-duplicates, so merging saves prompt space in Phase 7.
+- What would change this: storing a segment offset on chunks.
+
+## D-037: Ownership and readiness checked before retrieval
+
+- Decision: the search route loads the repo with { \_id, userId } (404 for missing and not-yours alike, as D-031), then requires status ready (409 REPO_NOT_READY), and only then calls retrieve().
+- Why: stops user B searching user A's repo by guessing an id. It also means orphaned chunks of a deleted repo (which live until their TTL) can never be reached, because no repo document means no search.
+- Limit: the vector filter uses repoId only. userId is not in the index (D-024), so safety rests on this route check.
+
+## D-038: Retrieval-only route, no score threshold
+
+- Decision: POST /api/repos/:id/search returns merged hits with raw scores, SHA-pinned GitHub URLs and no LLM call. No score threshold.
+- Why: separates retrieval from generation so bad answers can be traced to the right stage. BGE scores are compressed (D-023), so a threshold must come from measured data in Phase 10.
+- What would change this: Phase 7 reusing retrieve() inside the ask route.
