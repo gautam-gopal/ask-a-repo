@@ -12,6 +12,8 @@ export default defineConfig({
       GITHUB_TOKEN: "test-github-token-not-real",
       CLOUDFLARE_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
       CLOUDFLARE_API_TOKEN: "test-cf-token-not-real",
+      GROQ_API_KEY: "test-groq-key-not-real",
+      SEARCH_MIN_SCORE: "0.6",
     },
   },
 });

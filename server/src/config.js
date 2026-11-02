@@ -37,6 +37,17 @@ const schema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  GROQ_API_KEY: z.string().min(1, "is required (Groq API key)"),
+  GROQ_MODEL: z
+    .string()
+    .regex(/^[A-Za-z0-9._\/-]+$/, "must be a model id")
+    .default("openai/gpt-oss-120b"),
+  GROQ_FALLBACK_MODEL: z
+    .string()
+    .regex(/^[A-Za-z0-9._\/-]+$/, "must be a model id")
+    .default("openai/gpt-oss-20b"),
+  // PLACEHOLDER until the Phase 10 eval calibrates it (see answer.js).
+  SEARCH_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
 });
 
 // Treat empty values (e.g. "PORT=") as unset so defaults apply.
