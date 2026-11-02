@@ -6,6 +6,10 @@ import mongoose from "mongoose";
 import { config } from "./config.js";
 import cookieParser from "cookie-parser";
 import { User } from "./models/User.js";
+import { User } from "./models/User.js";
+import { Repo } from "./models/Repo.js";
+import { Chunk } from "./models/Chunk.js";
+import { recoverInterruptedIngests } from "./services/ingest.js";
 import { authRouter, meRouter } from "./routes/auth.js";
 import { notFound, errorHandler } from "./middleware/errors.js";
 
@@ -68,6 +72,15 @@ async function main() {
   console.log(`MongoDB connected (db: ${mongoose.connection.name})`);
 
   await User.init(); // wait for the unique email index to exist before serving
+  await Repo.init(); // unique { userId, ownerLower, nameLower } + TTL
+  await Chunk.init(); // repoId + TTL
+
+  try {
+    await recoverInterruptedIngests(); // before listening: no request can race it
+  } catch (err) {
+    console.error("Ingest recovery failed:", err.message);
+    process.exit(1);
+  }
 
   const server = app.listen(config.PORT, () => {
     console.log(`Server listening on port ${config.PORT} (${config.NODE_ENV})`);

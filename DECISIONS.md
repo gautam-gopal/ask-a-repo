@@ -192,3 +192,47 @@
 - embedding has select:false (about 9.9 KB per chunk) and a length validator against EMBEDDING_DIMENSIONS.
 - Test data: scripts/vector-test.js inserts 10 chunks under fixed dummy ids with expiresAt one day ahead, so the TTL removes them even if cleanup is forgotten.
 - Open: whether the vector index counts toward the 512 MB, and whether BSON float32 binary vectors work with the current driver. Not measurable on 10 documents; check in Atlas docs before Phase 5 sizing.
+
+## D-025: Background work with a status field, no queue
+
+- Context: indexing takes tens of seconds, longer than a request should stay open.
+- Decision: startIngest creates the repo as queued and returns it; runIngest runs unawaited in the same process. The repo's status field is the only job state.
+- Why: one instance, so Redis or a queue adds a service for no benefit. Status gives the UI something to poll.
+- Trade-off: the job dies with the process (D-027). Concurrency lives in an in-memory Map, so it is wrong with more than one instance.
+- What would change this: a second instance, which needs a queue and a worker.
+
+## D-026: State machine and failure cleanup
+
+- Decision: queued -> indexing -> ready | failed. Any error deletes all chunks for the repo, then sets failed with a fixed { code, message } from a lookup table. Provider text is never stored. Unknown errors become INTERNAL and are logged server-side only. runIngest never throws and always releases its slot in finally.
+- Why: a half-indexed repo would give wrong answers silently, so partial data is never kept. A final count check (stored chunks must equal chunked chunks) catches silent insert loss.
+- Also: if the repo is deleted mid-ingest, the next update matches nothing, so the job deletes its chunks and stops.
+- Known gap: the 10 minute limit is checked between stages and batches, not inside a single hung call. Each call has its own timeout, so the overshoot is bounded. The timeout path is not unit tested.
+
+## D-027: Boot-time recovery and its limitation
+
+- Decision: before listening, every repo still queued or indexing is marked failed (INTERRUPTED) and its chunks are deleted. The user adds the repo again.
+- Why: with a single instance, nothing can still be working on them.
+- Limitation: if Render ever runs two instances briefly (deploy overlap), the new one would fail a job the old one is still running. Jobs are never resumed. Accepted on a free single instance.
+- What would change this: a queue with leases or heartbeats.
+
+## D-028: Embed and insert per batch
+
+- Decision: batches of BATCH_SIZE (32): embed, insertMany (ordered: false, throwOnValidationError: true), update progress. Vectors for at most one batch exist in memory (about 300 KB), not the whole repo (about 15 MB).
+- Why: bounded memory on 512 MB, live progress for polling, and a failure wastes little quota. Without throwOnValidationError, Mongoose skips invalid docs silently on unordered inserts.
+- Usage per ingest comes from the new pure estimateUsage(texts), because getUsage() is process-wide and mixes concurrent ingests. Still an estimate (chars/4).
+
+## D-029: Limits and why these numbers
+
+- MAX_REPOS_PER_USER 3: at the 2 MB cap a repo is about 17 MB (D-020), so 3 is about 51 MB of the 512 MB per user. A few users fit.
+- One active ingest per user: stops one user using the shared GitHub and Cloudflare budgets.
+- MAX_CONCURRENT_INGESTS 2: Render free has 0.1 CPU, and each ingest already runs 5 GitHub downloads. Excess requests get BUSY, with no queue.
+- INGEST_TIMEOUT 10 minutes: a max repo needs about 47 embedding requests, so this is generous.
+- Slots are reserved synchronously before any await, so simultaneous requests cannot both pass.
+- A max-size repo costs about 3,400 estimated neurons, so roughly 3 per day on the Cloudflare allowance.
+
+## D-030: TTL expiry and indexes
+
+- Decision: every non-demo repo gets expiresAt = createdAt + 7 days (REPO_TTL_MS), and its chunks copy the same value, so both disappear together. Demo repos have no expiresAt (enforced by a pre-validate hook on the model).
+- Indexes: unique { userId, ownerLower, nameLower } (names are case-insensitive on GitHub) and TTL on expiresAt. There is no separate userId index because the compound one covers it.
+- Limit: the hook runs on create and save only. Any update that sets isDemo must also $unset expiresAt.
+- Failed repos expire too, so they do not pile up.

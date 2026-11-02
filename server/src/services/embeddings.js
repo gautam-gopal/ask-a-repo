@@ -65,6 +65,16 @@ export function getUsage() {
   };
 }
 
+// Pure estimate for one batch of texts (same chars/4 and neuron rate as getUsage).
+export function estimateUsage(texts) {
+  let estTokens = 0;
+  for (const t of texts) estTokens += Math.ceil(t.length / CHARS_PER_TOKEN);
+  return {
+    estTokens,
+    estNeurons: (estTokens / 1e6) * NEURONS_PER_MILLION_TOKENS,
+  };
+}
+
 function record(texts) {
   usage.batches++;
   usage.inputs += texts.length;
