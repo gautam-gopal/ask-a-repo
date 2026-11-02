@@ -236,3 +236,26 @@
 - Indexes: unique { userId, ownerLower, nameLower } (names are case-insensitive on GitHub) and TTL on expiresAt. There is no separate userId index because the compound one covers it.
 - Limit: the hook runs on create and save only. Any update that sets isDemo must also $unset expiresAt.
 - Failed repos expire too, so they do not pile up.
+
+## D-031: 404, not 403, for other users' repos
+
+- Context: a route that takes a repo id must stop user B reading or deleting user A's repo (insecure direct object reference).
+- Decision: every lookup is `{ _id, userId: req.user._id }`. Not found and not yours both return the same 404 REPO_NOT_FOUND body.
+- Why: a 403 would confirm the id exists. Ids are not secret, so existence should not leak either. The ownership check is part of the query, so there is no code path that loads another user's repo.
+- Trade-off: a malformed id gives 400 INVALID_ID, which reveals nothing about existence.
+- What would change this: shared or public repos, which need a real 403.
+
+## D-032: 202 plus polling, and the status mapping
+
+- Decision: POST /api/repos returns 202 with the queued repo and does not wait. The client polls GET /api/repos/:id for status, progress and error.
+- Why: indexing takes tens of seconds. Polling is stateless and survives a Render cold start. SSE or WebSockets would add connection handling for a status that changes every few seconds.
+- Mapping: INVALID_URL 400, REPO_EXISTS, INGEST_IN_PROGRESS and REPO_LIMIT_REACHED 409, BUSY 503 with Retry-After 60. Note: startIngest never throws GithubError, so GitHub failures (not found, private, rate limit) reach the client as status failed with a stored error, not as a POST error. The route maps them anyway as a safety net.
+- What would change this: a client needing instant push updates.
+
+## D-033: Delete while indexing is rejected
+
+- Decision: DELETE on a queued or indexing repo returns 409 INGEST_IN_PROGRESS. Failed and ready repos can be deleted.
+- Why: runIngest handles a deleted repo (D-026), but cancelling by deletion would also free the user's slot in the database while the job still holds it in memory and keeps spending GitHub and Cloudflare quota until its next update. Rejecting is simpler and has no such gap.
+- Order: delete the repo document first, then its chunks. If the second step fails, the orphan chunks expire through the shared TTL. The other order could leave a ready repo with no chunks.
+- Limit: no cancel button yet; the user waits for the job to finish or fail.
+- What would change this: an AbortController wired through runIngest, which would allow real cancellation.

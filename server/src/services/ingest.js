@@ -24,10 +24,9 @@ const RESERVED = "reserved";
 export const INTERRUPTED_MESSAGE =
   "Indexing was interrupted by a server restart. Add the repository again.";
 
-// HTTP mapping for 5B:
-//   INVALID_URL 400 | REPO_LIMIT_REACHED 403 | INGEST_IN_PROGRESS 409
-//   REPO_EXISTS 409 | BUSY 503 (send Retry-After)
-// INGEST_TIMEOUT and NO_CONTENT are only ever stored on a failed repo, never thrown to a route.
+// HTTP mapping (implemented in routes/repos.js):
+//   INVALID_URL 400 | REPO_EXISTS 409 | INGEST_IN_PROGRESS 409
+//   REPO_LIMIT_REACHED 409 | BUSY 503 (Retry-After)
 export class IngestError extends Error {
   constructor(code, message) {
     super(message);

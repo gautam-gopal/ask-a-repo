@@ -28,11 +28,29 @@ function setPath(obj, path, value) {
   cur[keys[keys.length - 1]] = value;
 }
 
-// Awaitable like a Mongoose query, with .lean().
-const query = (fn) => ({
-  lean: async () => fn(),
-  then: (resolve, reject) => Promise.resolve().then(fn).then(resolve, reject),
-});
+// Awaitable like a Mongoose query, with .lean() and .sort({ field: 1 | -1 }).
+const query = (fn) => {
+  let sortSpec = null;
+  const run = async () => {
+    const out = await fn();
+    if (sortSpec && Array.isArray(out)) {
+      const [[key, dir]] = Object.entries(sortSpec);
+      out.sort(
+        (a, b) => (a[key] > b[key] ? 1 : a[key] < b[key] ? -1 : 0) * dir,
+      );
+    }
+    return out;
+  };
+  const q = {
+    sort(spec) {
+      sortSpec = spec;
+      return q;
+    },
+    lean: run,
+    then: (resolve, reject) => run().then(resolve, reject),
+  };
+  return q;
+};
 
 export const fakeRepo = {
   async create(data) {

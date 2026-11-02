@@ -10,6 +10,7 @@ import { Repo } from "./models/Repo.js";
 import { Chunk } from "./models/Chunk.js";
 import { recoverInterruptedIngests } from "./services/ingest.js";
 import { authRouter, meRouter } from "./routes/auth.js";
+import { reposRouter } from "./routes/repos.js";
 import { notFound, errorHandler } from "./middleware/errors.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -36,6 +37,7 @@ app.get("/healthz", (_req, res) => {
 
 app.use("/api/auth", authRouter);
 app.use("/api/me", meRouter);
+app.use("/api/repos", reposRouter); // must stay above the static / SPA block below
 
 // Serve the built React app. Registered after /healthz, and future /api routes
 // must be mounted above this block. Unknown /api paths fall through to a 404.
