@@ -1,28 +1,46 @@
 import { useEffect, useState } from "react";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { setWakingHandler } from "./api.js";
+import { useAuth } from "./auth.jsx";
+import { Layout, Spinner, WakingBanner } from "./components.jsx";
+import LoginPage from "./pages/LoginPage.jsx";
+import ReposPage from "./pages/ReposPage.jsx";
+import ChatPage from "./pages/ChatPage.jsx";
+
+function RequireAuth() {
+  const { status } = useAuth();
+  const location = useLocation();
+  if (status === "loading")
+    return (
+      <div className="center">
+        <Spinner />
+      </div>
+    );
+  if (status === "anonymous")
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  return <Outlet />;
+}
 
 export default function App() {
-  const [health, setHealth] = useState(null);
-  const [error, setError] = useState(null);
-
+  const [waking, setWaking] = useState(false);
   useEffect(() => {
-    fetch("/healthz")
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(setHealth)
-      .catch((err) => setError(err.message));
+    setWakingHandler(setWaking);
+    return () => setWakingHandler(null);
   }, []);
 
-  let line = "Checking server...";
-  if (error) line = `Server unreachable: ${error}`;
-  else if (health)
-    line = `Server: ${health.status}, database: ${health.db}, uptime: ${health.uptime}s`;
-
   return (
-    <main>
-      <h1>Ask-a-Repo</h1>
-      <p>{line}</p>
-    </main>
+    <>
+      <WakingBanner show={waking} />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<RequireAuth />}>
+          <Route element={<Layout />}>
+            <Route path="/repos" element={<ReposPage />} />
+            <Route path="/repos/:id" element={<ChatPage />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<Navigate to="/repos" replace />} />
+      </Routes>
+    </>
   );
 }

@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "ask-a-repo": "file:..",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.0",

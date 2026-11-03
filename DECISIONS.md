@@ -372,3 +372,30 @@
 - Safety: preserve the guard against interpreting array indexing such as items[7] as citations.
 - Limitation: browsing-style markers such as 【3†L1-L5】 are not supported.
 - Why: model output is untrusted; source links must correspond only to valid retrieved excerpts.
+
+## D-050: react-router-dom is the only client dependency added
+
+- Context: the app needs /login, /repos and /repos/:id with deep links and protected routes.
+- Options considered: hand-rolled routing on window.location and history; react-router-dom.
+- Decision: react-router-dom. Everything else (state, fetch, styling) stays plain React and plain CSS.
+- Why: deep links, redirect-with-return-path and the back button are easy to get subtly wrong by hand.
+- What would change this: a UI so small that two views and a state variable are enough.
+
+## D-051: Auth state in React context, /api/me is the source of truth
+
+- Decision: AuthProvider calls /api/me on start (loading, authenticated, anonymous). Nothing about the user is stored in the browser, and the httpOnly cookie is invisible to JS. Any 401 from a non-auth call sets anonymous, and RequireAuth redirects to /login. Login and signup 401s are excluded (they mean wrong credentials).
+- Why: no stale client copy of auth. The handler is idempotent and /login makes no API calls, so there is no redirect loop.
+- Trade-off: a network failure during the initial /api/me looks like signed out.
+- What would change this: needing offline state or multi-tab sync.
+
+## D-052: Cold-start banner
+
+- Decision: api.js starts a 4 s timer per request. If it fires, a registered callback shows "Server is waking up, this can take about a minute". A counter hides the banner when the last slow request ends. Requests have a 75 s timeout, longer than a Render cold start. The ask call opts out (LLM answers are slow but not a cold start).
+- Why: Render free sleeps after 15 idle minutes. Without a message the first load looks broken.
+- Limit: any request slower than 4 s shows the banner, even if the server is awake.
+
+## D-053: Server and model text is rendered as plain text only
+
+- Decision: dangerouslySetInnerHTML is banned in this project. Server messages, repo text and model answers go through React's normal escaping. The rule is stated in a comment in components.jsx.
+- Why: repo files and LLM output are attacker-controllable. Rendering them as HTML would turn prompt injection into XSS.
+- What would change this: wanting rendered markdown answers, which needs a sanitiser decision first (8C will render plain text).
