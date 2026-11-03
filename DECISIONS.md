@@ -399,3 +399,25 @@
 - Decision: dangerouslySetInnerHTML is banned in this project. Server messages, repo text and model answers go through React's normal escaping. The rule is stated in a comment in components.jsx.
 - Why: repo files and LLM output are attacker-controllable. Rendering them as HTML would turn prompt injection into XSS.
 - What would change this: wanting rendered markdown answers, which needs a sanitiser decision first (8C will render plain text).
+
+## D-054: Poll the list every 3 s, only while something is active
+
+- Context: the client must learn when indexing finishes (D-032: 202 plus polling).
+- Decision: poll GET /api/repos (not each repo) every 3 s while any repo is queued or indexing. Polling stops when none is active, when the tab is hidden (resumes with an immediate fetch on return), and on unmount. One request at a time (an in-flight flag). After a failed poll the delay doubles (3, 6, 12, 24, then 30 s cap) and resets on success. Results arriving after unmount are ignored. Polls do not trigger the waking banner; only the first load does.
+- Why: one list request covers every repo, and nothing is sent when idle or hidden, which saves the shared free-tier budget and keeps Render awake only while work is running.
+- Trade-off: progress can be up to 3 s stale. Hidden tabs see no updates until visible again.
+- What would change this: needing instant updates (SSE) or many concurrent repos.
+
+## D-055: Server error codes become readable messages in one pure table
+
+- Decision: formatError(err) in repoHelpers.js maps INVALID_URL, VALIDATION_ERROR, REPO_EXISTS, INGEST_IN_PROGRESS, REPO_LIMIT_REACHED and BUSY to messages written in the client. Any other code falls back to the error's own message, then to a generic one. BUSY says "about a minute" because the client does not read the Retry-After header.
+- Why: server messages are fine for developers but some are not instructions for a user (VALIDATION_ERROR reads "url: is required"). A pure table is easy to test.
+- Tests: the helpers live in client/src/repoHelpers.js (no imports) and are tested from server/test/repoHelpers.test.js, so the client needs no test runner or new dependency. Page behaviour (polling, delete) is not unit tested.
+- What would change this: a client test setup being added for component tests.
+
+## D-056: Delete needs a confirm step, except removing a failed repo
+
+- Decision: Delete on a ready or active repo shows "Delete this repository and its chat history? Yes, delete / Cancel" inline. Failed repos have a single Remove button because nothing of value is lost, and it doubles as re-index (remove, then add again). The server's text is shown for delete errors, so deleting an active repo shows the 409 message. A 404 on delete means it is already gone, so the row is removed.
+- Why: delete is irreversible (chunks and messages go too). An inline confirm avoids window.confirm and needs no modal.
+- Trade-off: active repos show a Delete button that always ends in the 409 message. Kept so the server rule is visible and testable from the UI.
+- What would change this: real cancellation (D-033), which would make Delete on an active repo meaningful.

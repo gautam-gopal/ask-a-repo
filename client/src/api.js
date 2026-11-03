@@ -124,7 +124,9 @@ export const me = () => request("GET", "/api/me", { authRedirect: false });
 
 // Repos and ask (used from 8B and 8C).
 const id = encodeURIComponent;
-export const listRepos = () => request("GET", "/api/repos");
+// Polls pass wakeHint: false so only the first load can show the "waking up" banner.
+export const listRepos = ({ wakeHint = true } = {}) =>
+  request("GET", "/api/repos", { wakeHint });
 export const createRepo = (url) =>
   request("POST", "/api/repos", { body: { url } });
 export const getRepo = (repoId) => request("GET", `/api/repos/${id(repoId)}`);
