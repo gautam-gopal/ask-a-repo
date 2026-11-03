@@ -75,22 +75,24 @@ export function buildMessages({ question, hits, history = [] }) {
   };
 }
 
-// Finds [n] and [n, m] markers. Returns { cited, invalid, text }: sorted unique valid
-// numbers, sorted unique out-of-range numbers, and the text with invalid numbers removed.
-// A marker directly after a word character or ")" (like arr[7]) is code, not a citation,
-// and is left alone. Known limit: a[0][1] counts the second [1] as a citation.
+// Finds [n] / [n, m] and 【n】 / 【n, m】 markers (some models emit the Unicode brackets).
+// Returns { cited, invalid, text }: sorted unique valid numbers, sorted unique out-of-range
+// numbers, and the text with invalid numbers removed. Valid markers of either style are
+// rewritten as ASCII [n] / [n, m]. An ASCII marker directly after a word character or ")"
+// (like arr[7]) is code, not a citation, and is left alone. The Unicode brackets never
+// appear in code, so they need no such guard. Known limit: a[0][1] counts the second [1].
+const CITATION_RE =
+  /(?<![\w)])\[(\d+(?:\s*,\s*\d+)*)\]|【\s*(\d+(?:\s*,\s*\d+)*)\s*】/g;
+
 export function extractCitations(answerText, usedHitsCount) {
   const cited = new Set();
   const invalid = new Set();
-  const text = answerText.replace(
-    /(?<![\w)])\[(\d+(?:\s*,\s*\d+)*)\]/g,
-    (_m, group) => {
-      const nums = group.split(",").map((s) => Number(s.trim()));
-      const valid = nums.filter((n) => n >= 1 && n <= usedHitsCount);
-      for (const n of nums) (valid.includes(n) ? cited : invalid).add(n);
-      return valid.length ? `[${valid.join(", ")}]` : "";
-    },
-  );
+  const text = answerText.replace(CITATION_RE, (_m, ascii, unicode) => {
+    const nums = (ascii ?? unicode).split(",").map((s) => Number(s.trim()));
+    const valid = nums.filter((n) => n >= 1 && n <= usedHitsCount);
+    for (const n of nums) (valid.includes(n) ? cited : invalid).add(n);
+    return valid.length ? `[${valid.join(", ")}]` : "";
+  });
   const sort = (s) => [...s].sort((a, b) => a - b);
   return { cited: sort(cited), invalid: sort(invalid), text };
 }

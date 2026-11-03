@@ -135,4 +135,53 @@ describe("extractCitations", () => {
     expect(r.text).toContain("items[7]");
     expect(r.cited).toEqual([1]);
   });
+
+  it("recognises Unicode 【n】 citations and normalises them to [n]", () => {
+    const r = extractCitations("Auth is here 【1】 and token 【3】.", 3);
+    expect(r.cited).toEqual([1, 3]);
+    expect(r.invalid).toEqual([]);
+    expect(r.text).toBe("Auth is here [1] and token [3].");
+  });
+
+  it("handles grouped Unicode citations", () => {
+    const r = extractCitations("Both 【1, 3】 agree.", 3);
+    expect(r.cited).toEqual([1, 3]);
+    expect(r.text).toBe("Both [1, 3] agree.");
+  });
+
+  it("removes out-of-range Unicode citations and records them", () => {
+    const r = extractCitations("See 【1】 and 【7】.", 2);
+    expect(r.cited).toEqual([1]);
+    expect(r.invalid).toEqual([7]);
+    expect(r.text).toBe("See [1] and .");
+    expect(r.text).not.toContain("【");
+    expect(r.text).not.toContain("[7]");
+  });
+
+  it("filters invalid numbers inside a Unicode group", () => {
+    const r = extractCitations("Both 【1, 9】.", 2);
+    expect(r.cited).toEqual([1]);
+    expect(r.invalid).toEqual([9]);
+    expect(r.text).toBe("Both [1].");
+  });
+
+  it("handles mixed ASCII and Unicode citations, sorted and unique", () => {
+    const r = extractCitations("A [2]. B 【1】. C 【2, 3】. D [3].", 3);
+    expect(r.cited).toEqual([1, 2, 3]);
+    expect(r.invalid).toEqual([]);
+    expect(r.text).toBe("A [2]. B [1]. C [2, 3]. D [3].");
+  });
+
+  it("rejects 0 in either bracket style", () => {
+    const r = extractCitations("x [0] y 【0】", 2);
+    expect(r.cited).toEqual([]);
+    expect(r.invalid).toEqual([0]);
+  });
+
+  it("still leaves array indexing alone next to Unicode citations", () => {
+    const r = extractCitations("Use `items[7]` and arr[0] here 【1】.", 2);
+    expect(r.text).toBe("Use `items[7]` and arr[0] here [1].");
+    expect(r.cited).toEqual([1]);
+    expect(r.invalid).toEqual([]);
+  });
 });

@@ -8,6 +8,7 @@ import cookieParser from "cookie-parser";
 import { User } from "./models/User.js";
 import { Repo } from "./models/Repo.js";
 import { Chunk } from "./models/Chunk.js";
+import { Message } from "./models/Message.js";
 import { recoverInterruptedIngests } from "./services/ingest.js";
 import { authRouter, meRouter } from "./routes/auth.js";
 import { reposRouter } from "./routes/repos.js";
@@ -75,6 +76,7 @@ async function main() {
   await User.init(); // wait for the unique email index to exist before serving
   await Repo.init(); // unique { userId, ownerLower, nameLower } + TTL
   await Chunk.init(); // repoId + TTL
+  await Message.init(); // { repoId, createdAt } + TTL
 
   try {
     await recoverInterruptedIngests(); // before listening: no request can race it

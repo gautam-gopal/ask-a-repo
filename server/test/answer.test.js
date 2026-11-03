@@ -93,4 +93,17 @@ describe("answerQuestion", () => {
     expect(r.answer).toMatch(/do not contain the answer/);
     expect(r.sources[0].cited).toBe(false);
   });
+
+  it("marks sources cited when the model uses Unicode brackets", async () => {
+    fetchMock.mockResolvedValueOnce(reply("Auth lives in a.js 【1】."));
+    const r = await answerQuestion({
+      question: "where is auth",
+      hits: [hit("a.js", HIGH), hit("b.js", HIGH - 0.1)],
+    });
+    expect(r.answer).toBe("Auth lives in a.js [1].");
+    expect(r.sources.map((s) => [s.n, s.cited])).toEqual([
+      [1, true],
+      [2, false],
+    ]);
+  });
 });

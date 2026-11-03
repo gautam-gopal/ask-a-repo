@@ -7,4 +7,9 @@ vi.mock("../src/models/User.js", async () => {
   return { User: fakeUser };
 });
 
+vi.mock("../src/models/Message.js", async () => {
+  const { fakeMessage } = await import("./fakeIngestModels.js");
+  return { Message: fakeMessage };
+});
+
 beforeEach(() => resetUsers());

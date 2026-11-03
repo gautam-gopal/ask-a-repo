@@ -336,3 +336,39 @@
 
 - Decision: only llm.js knows Groq (endpoint, auth, body, error codes). Everything else uses chat, generate and LlmError. Errors use fixed messages and carry only the status, a short lowercase provider code and retryAfterSeconds, never bodies, headers or the key. prompt.js and answer.js are pure or provider-neutral.
 - Why: same reason as D-022: free tiers die, and swapping provider is a one-file change.
+
+## D-045: Store every exchange in `messages`
+
+- Context: the chat UI needs history after a reload, and follow-ups need earlier turns.
+- Decision: every successful ask (answered or not-found) is saved as one Message: question, answer (null when not found), notFound, sources with SHA-pinned URLs, cited flag, model, usedFallback. expiresAt is copied from the repo, so messages expire with it. Demo repos have none. Deleting a repo deletes its messages; if that step fails, the TTL cleans up.
+- Why: one document per exchange keeps reads and deletes simple. Sources are stored with their URL so old answers stay valid after the repo changes.
+- Trade-off: retrieved text and scores are not stored, so a past answer cannot be re-audited. `n` is stored per source so [n] markers in the answer map back to links.
+- What would change this: the Phase 10 eval needing per-answer scores, or storage pressure.
+
+## D-046: History is the last 4 answered turns, read from the database
+
+- Decision: the ask route loads the newest 4 messages for this repo and user where notFound is false, reverses them to oldest first, and passes them to buildMessages (which also caps each field at 500 chars).
+- Why: the server is the source of truth, so a client cannot inject fake history. Not-found turns have no answer, so they are left out.
+- Limit: retrieval still uses only the raw question. A vague follow-up ("where is that handled?") retrieves poorly until Phase 11 rewrites it.
+- What would change this: Phase 11 query rewriting.
+
+## D-047: Ask error mapping, and failed exchanges are not saved
+
+- Decision: Embedding and LLM RATE_LIMITED -> 503 with Retry-After (provider value when known, else 60). QUOTA_EXHAUSTED -> 503. AUTH_FAILED -> logged server-side, client gets a generic 500. TIMEOUT -> 504. Everything else from a provider -> 502. Unknown errors go to the central handler (500). Messages are authored in the route, never provider text.
+- Not saved on failure: the Message is created only after the pipeline succeeds, so history never contains a question with no answer. The user just asks again.
+- Why: the client can tell "try later" (503), "we are broken" (500) and "provider failed" (502) apart without learning anything about keys or providers.
+- Trade-off: if Message.create fails after a successful LLM call, the answer is lost and the user gets a 500.
+
+## D-048: 404 for other users' repos on ask and messages
+
+- Decision: ask and messages use the same findOwned lookup as every other repo route (D-031): { \_id, userId }, identical 404 body for missing and not-yours. Readiness (409) is checked only after ownership. History queries also filter on userId.
+- Why: no existence leak, and no code path loads another user's repo or messages.
+- Note: zod validation runs before the ownership lookup, so a bad body returns 400 even on someone else's repo. That reveals nothing.
+
+## D-049: Normalize and validate model-generated citations
+
+- Context: GPT-OSS sometimes emits Unicode citation markers such as 【n】 instead of ASCII [n].
+- Decision: accept both formats, validate citation numbers against the excerpts actually sent, normalize valid citations to ASCII, remove invalid citations and mark corresponding sources as cited.
+- Safety: preserve the guard against interpreting array indexing such as items[7] as citations.
+- Limitation: browsing-style markers such as 【3†L1-L5】 are not supported.
+- Why: model output is untrusted; source links must correspond only to valid retrieved excerpts.

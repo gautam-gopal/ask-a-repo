@@ -1,7 +1,6 @@
-// In-memory stand-ins for the Repo and Chunk models. Implements only what ingest.js calls.
-// Ids are plain strings; matching compares String(value).
 export const repos = [];
 export const chunks = [];
+export const messages = [];
 let counter = 0;
 const nextId = () => String(++counter).padStart(24, "0");
 const clone = (v) => structuredClone(v);
@@ -9,6 +8,7 @@ const clone = (v) => structuredClone(v);
 export function resetIngestModels() {
   repos.length = 0;
   chunks.length = 0;
+  messages.length = 0;
   counter = 0;
 }
 
@@ -28,22 +28,32 @@ function setPath(obj, path, value) {
   cur[keys[keys.length - 1]] = value;
 }
 
-// Awaitable like a Mongoose query, with .lean() and .sort({ field: 1 | -1 }).
+// Awaitable like a Mongoose query, with .lean(), .sort({ a: 1, b: -1 }) and .limit(n).
 const query = (fn) => {
   let sortSpec = null;
+  let limitN = null;
   const run = async () => {
-    const out = await fn();
+    let out = await fn();
     if (sortSpec && Array.isArray(out)) {
-      const [[key, dir]] = Object.entries(sortSpec);
-      out.sort(
-        (a, b) => (a[key] > b[key] ? 1 : a[key] < b[key] ? -1 : 0) * dir,
-      );
+      const keys = Object.entries(sortSpec);
+      out.sort((a, b) => {
+        for (const [key, dir] of keys) {
+          const c = a[key] > b[key] ? 1 : a[key] < b[key] ? -1 : 0;
+          if (c) return c * dir;
+        }
+        return 0;
+      });
     }
+    if (limitN !== null && Array.isArray(out)) out = out.slice(0, limitN);
     return out;
   };
   const q = {
     sort(spec) {
       sortSpec = spec;
+      return q;
+    },
+    limit(n) {
+      limitN = n;
       return q;
     },
     lean: run,
@@ -136,5 +146,35 @@ export const fakeChunk = {
   },
   async countDocuments(filter) {
     return chunks.filter((c) => matches(c, filter)).length;
+  },
+};
+
+export const fakeMessage = {
+  async create(data) {
+    const doc = {
+      answer: null,
+      notFound: false,
+      sources: [],
+      model: null,
+      usedFallback: false,
+      createdAt: new Date(),
+      ...clone(data),
+      _id: nextId(),
+    };
+    messages.push(doc);
+    return clone(doc);
+  },
+  find(filter) {
+    return query(() => messages.filter((m) => matches(m, filter)).map(clone));
+  },
+  async deleteMany(filter) {
+    let deleted = 0;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (matches(messages[i], filter)) {
+        messages.splice(i, 1);
+        deleted++;
+      }
+    }
+    return { deletedCount: deleted };
   },
 };

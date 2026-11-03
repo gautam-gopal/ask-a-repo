@@ -9,6 +9,9 @@ import { startIngest, IngestError } from "../services/ingest.js";
 import { GithubError } from "../services/github.js";
 import { retrieve } from "../services/retrieve.js";
 import { EmbeddingError } from "../services/embeddings.js";
+import { Message } from "../models/Message.js";
+import { answerQuestion } from "../services/answer.js";
+import { LlmError } from "../services/llm.js";
 
 const ACTIVE = ["queued", "indexing"];
 const ID_RE = /^[0-9a-f]{24}$/i;
@@ -36,6 +39,12 @@ const searchSchema = z.object({
   question: z.string().trim().min(1, "is required").max(500),
 });
 
+const askSchema = z.object({
+  question: z.string().trim().min(1, "is required").max(500),
+});
+const HISTORY_TURNS = 4;
+const MESSAGES_LIMIT = 50;
+
 // Messages are authored here, never provider text.
 function mapEmbeddingError(err, res) {
   if (!(err instanceof EmbeddingError)) return err;
@@ -58,6 +67,72 @@ function mapEmbeddingError(err, res) {
     "EMBEDDING_FAILED",
     "Search failed. Try again later.",
   );
+}
+
+// Ask pipeline errors (embedding or LLM). Messages are authored here, never provider text.
+// Retry-After uses the provider's value when known, else RETRY_AFTER_SECONDS.
+function mapAskError(err, res) {
+  const llm = err instanceof LlmError;
+  if (!llm && !(err instanceof EmbeddingError)) return err; // central handler: generic 500
+  switch (err.code) {
+    case "QUOTA_EXHAUSTED":
+      return new AppError(
+        503,
+        "QUOTA_EXHAUSTED",
+        "The daily embedding allowance is used up. It resets at midnight UTC. Try again later.",
+      );
+    case "RATE_LIMITED": {
+      const secs = llm
+        ? err.retryAfterSeconds
+        : err.details?.retryAfterMs != null
+          ? Math.ceil(err.details.retryAfterMs / 1000)
+          : null;
+      res.set("Retry-After", String(secs || RETRY_AFTER_SECONDS));
+      return new AppError(
+        503,
+        llm ? "LLM_RATE_LIMITED" : "EMBEDDING_RATE_LIMITED",
+        "The service is busy. Try again in a few minutes.",
+      );
+    }
+    case "AUTH_FAILED":
+      // Server misconfiguration: log the fact, never tell the client about keys.
+      console.error(
+        `Ask failed: ${llm ? "LLM" : "embedding"} provider rejected the server credentials`,
+      );
+      return new AppError(500, "INTERNAL", "Something went wrong");
+    case "TIMEOUT":
+      return new AppError(
+        504,
+        "UPSTREAM_TIMEOUT",
+        "The request took too long. Try again.",
+      );
+    default:
+      return new AppError(
+        502,
+        "ANSWER_FAILED",
+        "Answering failed. Try again later.",
+      );
+  }
+}
+
+function publicMessage(m) {
+  return {
+    id: String(m._id),
+    question: m.question,
+    answer: m.answer ?? null,
+    notFound: m.notFound,
+    sources: (m.sources ?? []).map((s) => ({
+      n: s.n,
+      path: s.path,
+      startLine: s.startLine,
+      endLine: s.endLine,
+      url: s.url,
+      cited: s.cited,
+    })),
+    model: m.model ?? null,
+    usedFallback: m.usedFallback ?? false,
+    createdAt: m.createdAt,
+  };
 }
 
 function hitUrl(repo, h) {
@@ -151,6 +226,7 @@ reposRouter.delete("/:id", async (req, res) => {
     );
   await Repo.deleteOne({ _id: repo._id, userId: req.user._id });
   await Chunk.deleteMany({ repoId: repo._id }); // orphans (if this fails) expire via TTL
+  await Message.deleteMany({ repoId: repo._id }); // same: orphans expire via TTL
   res.json({ ok: true });
 });
 
@@ -183,4 +259,80 @@ reposRouter.post("/:id/search", validate(searchSchema), async (req, res) => {
     })),
     repo: { id: String(repo._id), commitSha: repo.commitSha },
   });
+});
+
+reposRouter.post("/:id/ask", validate(askSchema), async (req, res) => {
+  const repo = await findOwned(req);
+  if (repo.status !== "ready")
+    throw new AppError(
+      409,
+      "REPO_NOT_READY",
+      "This repository is not ready yet. Wait until indexing finishes.",
+    );
+  const { question } = req.body;
+
+  let result;
+  try {
+    // Answered turns only: a not-found turn has no answer to give the model as context.
+    const recent = await Message.find({
+      repoId: repo._id,
+      userId: req.user._id,
+      notFound: false,
+    })
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(HISTORY_TURNS)
+      .lean();
+    const history = recent
+      .reverse()
+      .map((m) => ({ question: m.question, answer: m.answer }));
+    const hits = await retrieve({ repoId: repo._id, query: question });
+    result = await answerQuestion({ question, hits, history });
+  } catch (err) {
+    throw mapAskError(err, res); // nothing is saved when the pipeline fails
+  }
+
+  const sources = result.notFound
+    ? []
+    : result.sources.map((s) => ({
+        n: s.n,
+        path: s.path,
+        startLine: s.startLine,
+        endLine: s.endLine,
+        url: hitUrl(repo, s),
+        cited: s.cited,
+      }));
+  const model = result.model ?? null;
+  const usedFallback = result.usedFallback ?? false;
+  const saved = await Message.create({
+    repoId: repo._id,
+    userId: req.user._id,
+    question,
+    answer: result.answer,
+    notFound: result.notFound,
+    sources,
+    model,
+    usedFallback,
+    ...(repo.expiresAt ? { expiresAt: repo.expiresAt } : {}),
+  });
+  res.json({
+    id: String(saved._id),
+    answer: result.answer,
+    notFound: result.notFound,
+    sources,
+    model,
+    usedFallback,
+    repo: { id: String(repo._id), commitSha: repo.commitSha },
+  });
+});
+
+reposRouter.get("/:id/messages", async (req, res) => {
+  const repo = await findOwned(req);
+  const recent = await Message.find({
+    repoId: repo._id,
+    userId: req.user._id,
+  })
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(MESSAGES_LIMIT)
+    .lean();
+  res.json({ messages: recent.reverse().map(publicMessage) });
 });
