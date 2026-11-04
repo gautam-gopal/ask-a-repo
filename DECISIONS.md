@@ -421,3 +421,24 @@
 - Why: delete is irreversible (chunks and messages go too). An inline confirm avoids window.confirm and needs no modal.
 - Trade-off: active repos show a Delete button that always ends in the 409 message. Kept so the server rule is visible and testable from the UI.
 - What would change this: real cancellation (D-033), which would make Delete on an active repo meaningful.
+
+## D-057: Model output is plain text; only github.com URLs become links
+
+- Context: answers come from an LLM that reads attacker-controllable repo files. Source URLs are built by our server, but they are stored data.
+- Decision: answers, questions and server messages render as React text (never dangerouslySetInnerHTML, D-053). linkifyCitations returns only `text` and `cite` segments, so it cannot produce HTML. A source becomes a link only if its URL starts with `https://github.com/` (isGithubUrl); otherwise the path shows as text. Links use target=\_blank with rel="noopener noreferrer".
+- Why: a prompt-injected answer must not become XSS, and a poisoned URL (`javascript:`, `data:`, a lookalike host) must not become a clickable link. The allowlist is checked in the client even though the server built the URL: defence in depth.
+- Trade-off: no markdown or code highlighting in answers; fenced code shows as plain text.
+- What would change this: rendered markdown, which needs a sanitiser decision first.
+
+## D-058: Citation chips
+
+- Decision: [n] and 【n】 markers become small buttons that scroll to the matching source and highlight it for 2 s. A marker with no matching source stays plain text. Code spans and fences are passed through untouched, and a marker right after a word character or ")" is code (items[7]). Adjacent markers and groups [1, 3] each become a chip.
+- Why: chips are buttons, not links, because the source list is on the same page. Pure function, so every edge case is unit tested.
+- Limit: a chip proves the number exists in the sources, not that the claim is supported. Sources show cited first, with a "cited" badge.
+- What would change this: Phase 9 streaming, where partial text needs incremental parsing.
+
+## D-059: Errors keep the typed question
+
+- Decision: the textarea is cleared only after a successful answer. While a request is pending it is readOnly (not disabled, so focus is kept) and Send is disabled. Failures show a message mapped from the server code (formatAskError), and the question stays for a retry. Rate limit and quota messages say to wait about a minute (the client does not read Retry-After). A missing repo on load redirects to /repos with a notice; a failed ask is not added to history, matching the server (D-047). An empty question is caught locally.
+- Why: retyping a question after a 503 is the most annoying failure; the server never saves failed exchanges, so the UI must not show them either.
+- What would change this: reading Retry-After to show an exact wait.

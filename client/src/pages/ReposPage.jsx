@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { createRepo, deleteRepo, listRepos } from "../api.js";
-import { ErrorMessage, Spinner } from "../components.jsx";
+import { ErrorMessage, Spinner, useTitle } from "../components.jsx";
 import {
   formatCreated,
   formatError,
@@ -131,6 +131,9 @@ function RepoRow({
 }
 
 export default function ReposPage() {
+  useTitle("Repositories · Ask-a-Repo");
+  const notice = useLocation().state?.notice;
+
   const [repos, setRepos] = useState(null); // null = not loaded yet
   const [loadError, setLoadError] = useState(null);
   const [url, setUrl] = useState("");
@@ -253,6 +256,11 @@ export default function ReposPage() {
   return (
     <>
       <h1>Repositories</h1>
+      {notice && (
+        <p className="notice" role="status">
+          {notice}
+        </p>
+      )}
 
       <form onSubmit={onAdd} noValidate className="card">
         <h2>Add a repository</h2>

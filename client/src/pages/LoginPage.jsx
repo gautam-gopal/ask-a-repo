@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth.jsx";
-import { ErrorMessage, Spinner } from "../components.jsx";
+import { ErrorMessage, Spinner, useTitle } from "../components.jsx";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -27,6 +27,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  useTitle(mode === "signup" ? "Sign up · Ask-a-Repo" : "Log in · Ask-a-Repo");
 
   if (status === "loading")
     return (

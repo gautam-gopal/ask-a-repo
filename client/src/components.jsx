@@ -1,8 +1,14 @@
 // SECURITY: never use dangerouslySetInnerHTML anywhere in this project. Repo text, model
 // answers and server messages are untrusted; React escapes them when rendered as plain text.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
+
+export function useTitle(title) {
+  useEffect(() => {
+    document.title = title;
+  }, [title]);
+}
 
 export function Spinner() {
   return <span className="spinner" role="status" aria-label="Loading" />;
