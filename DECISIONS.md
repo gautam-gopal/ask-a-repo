@@ -442,3 +442,53 @@
 - Decision: the textarea is cleared only after a successful answer. While a request is pending it is readOnly (not disabled, so focus is kept) and Send is disabled. Failures show a message mapped from the server code (formatAskError), and the question stays for a retry. Rate limit and quota messages say to wait about a minute (the client does not read Retry-After). A missing repo on load redirects to /repos with a notice; a failed ask is not added to history, matching the server (D-047). An empty question is caught locally.
 - Why: retyping a question after a 503 is the most annoying failure; the server never saves failed exchanges, so the UI must not show them either.
 - What would change this: reading Retry-After to show an exact wait.
+
+## D-060: SSE, not WebSockets
+
+- Context: answers take seconds; users should see tokens as they arrive.
+- Decision: Server-Sent Events over a normal HTTP response.
+- Why: one direction only, plain HTTP, same cookie auth and same origin, no extra library, no upgrade handshake through Render's proxy.
+- What would change this: needing server-to-client and client-to-server messages on one open connection.
+
+## D-061: POST plus fetch streaming, not EventSource
+
+- Decision: POST /api/repos/:id/ask/stream, read by the client with fetch and a stream reader (9B).
+- Why: EventSource only does GET, so the question would go in the URL (logged, length-limited). The existing zod validation, auth cookie and 404/409 handling work unchanged on POST. The non-streaming POST /ask stays for tests and as a fallback.
+- Trade-off: no automatic reconnect; the client must parse the stream itself.
+
+## D-062: Event protocol and the callback API
+
+- Decision: `sources` ({ sources } for the excerpts sent to the model, numbered as the [n] markers, cited false), `token` ({ t }), `done` ({ id, answer, notFound, sources with cited flags, model, usedFallback, usage }), `error` ({ code, message }). Token text is raw model output; `done.answer` is the cleaned, citation-normalised text and replaces it on the client. Not-found sends only `done`.
+- generateStream(...) is callback based (onToken) and returns the final result, because the route needs both tokens and the final value, and a generator's return value is awkward to read. Only delta.content is forwarded, never reasoning.
+- Chunk shape, usage location, mid-stream error shape and [DONE] are assumptions to verify against Groq docs.
+- What would change this: Groq's stream format differing from these assumptions (one-file change in llm.js).
+
+## D-063: Errors before the stream are JSON, after it are events
+
+- Decision: validation, ownership 404, 409 REPO_NOT_READY, history load and retrieval run before headers are flushed, so they return normal JSON errors with real status codes. After flushHeaders the status is fixed at 200, so failures become an `error` event followed by the end of the stream. Error payloads reuse mapAskError's fixed messages (no provider text); unknown errors become INTERNAL and are logged server-side.
+- Why: clients and curl see an honest status code whenever one is still possible.
+- Trade-off: retrieval latency (about a second) passes before the first byte.
+
+## D-064: No model switch after the first token
+
+- Decision: fall back to the smaller model only on RATE_LIMITED or MODEL_UNAVAILABLE before any token was emitted. After the first token, any failure is thrown and sent as an `error` event.
+- Why: switching would splice two models' text into one answer, and the user has already seen the first part. No retries on streaming calls for the same reason.
+
+## D-065: Abort on disconnect, never save partial answers
+
+- Decision: the route listens to `close` on the response (not the request: request `close` fires when the body has been read) and aborts an AbortController wired into the Groq fetch. A message is saved only after a complete answer, and not if the client has left. Failed or aborted streams save nothing, matching D-047.
+- Why: abandoned requests must not burn the free Groq quota, and history must not contain answers nobody finished reading.
+- Trade-off: a client that reads the whole answer but disconnects before `done` loses that exchange.
+
+## D-066: Heartbeat comment every 15 seconds
+
+- Decision: while the stream is open the server writes `: keep-alive` every 15 s. Parsers ignore comment lines.
+- Why: stops proxies and the browser closing an idle connection during a slow first token. The upstream also has a 30 s idle timeout between chunks.
+- What would change this: a host with a longer idle limit (then heartbeats are only cosmetic).
+
+## D-067: Strict stream completion, reasoning controls, optional usage
+
+- Decision: a stream succeeds only with finish_reason "stop" AND the [DONE] terminator. EOF, reset, a missing signal, finish_reason "length" or any other value is an error, so truncated or interrupted answers are never saved. For openai/gpt-oss models the request sends include_reasoning false and reasoning_effort "low" (reasoning is still generated and probably still counts against max_completion_tokens; low effort is what protects the 700-token budget). stream_options.include_usage is requested; usage is optional and never fails an answer.
+- Why: the first version treated either signal as success, which could persist an interrupted answer.
+- Trade-off: low effort may reduce answer quality on hard questions; Phase 10 can compare effort levels.
+- Status: parameter validity, terminator and usage location are unverified until groq-stream-probe.js is run live.

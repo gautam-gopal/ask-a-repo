@@ -10,7 +10,7 @@ import { GithubError } from "../services/github.js";
 import { retrieve } from "../services/retrieve.js";
 import { EmbeddingError } from "../services/embeddings.js";
 import { Message } from "../models/Message.js";
-import { answerQuestion } from "../services/answer.js";
+import { answerQuestion, answerQuestionStream } from "../services/answer.js";
 import { LlmError } from "../services/llm.js";
 
 const ACTIVE = ["queued", "indexing"];
@@ -113,6 +113,17 @@ function mapAskError(err, res) {
         "Answering failed. Try again later.",
       );
   }
+}
+
+const HEARTBEAT_MS = 15_000;
+
+// Same mapping as mapAskError, but safe after headers are sent (no res.set) and returns a payload.
+function toStreamError(err) {
+  const mapped = mapAskError(err, { set() {} });
+  if (mapped instanceof AppError)
+    return { code: mapped.code, message: mapped.message };
+  console.error("Ask stream failed:", mapped?.stack ?? mapped);
+  return { code: "INTERNAL", message: "Something went wrong" };
 }
 
 function publicMessage(m) {
@@ -335,4 +346,123 @@ reposRouter.get("/:id/messages", async (req, res) => {
     .limit(MESSAGES_LIMIT)
     .lean();
   res.json({ messages: recent.reverse().map(publicMessage) });
+});
+
+// SSE ask. Everything that can fail before the stream (validation, ownership, readiness,
+// history, retrieval) is a normal JSON error. After flushHeaders only SSE events are written.
+// No compression middleware exists in index.js; if one is added it must skip this route.
+reposRouter.post("/:id/ask/stream", validate(askSchema), async (req, res) => {
+  const repo = await findOwned(req);
+  if (repo.status !== "ready")
+    throw new AppError(
+      409,
+      "REPO_NOT_READY",
+      "This repository is not ready yet. Wait until indexing finishes.",
+    );
+  const { question } = req.body;
+
+  // res "close" (not req): req "close" fires when the request body is read, not on disconnect.
+  const ac = new AbortController();
+  res.on("close", () => {
+    if (!res.writableFinished) ac.abort();
+  });
+
+  let hits;
+  let history;
+  try {
+    const recent = await Message.find({
+      repoId: repo._id,
+      userId: req.user._id,
+      notFound: false,
+    })
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(HISTORY_TURNS)
+      .lean();
+    history = recent
+      .reverse()
+      .map((m) => ({ question: m.question, answer: m.answer }));
+    hits = await retrieve({ repoId: repo._id, query: question });
+  } catch (err) {
+    throw mapAskError(err, res);
+  }
+  if (ac.signal.aborted) return;
+
+  res.status(200).set({
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  res.flushHeaders();
+
+  const alive = () => !res.writableEnded && !res.destroyed;
+  const send = (event, data) => {
+    if (alive())
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+  const heartbeat = setInterval(() => {
+    if (alive()) res.write(": keep-alive\n\n");
+  }, HEARTBEAT_MS);
+
+  try {
+    const result = await answerQuestionStream({
+      question,
+      hits,
+      history,
+      signal: ac.signal,
+      onSources: (used) =>
+        send("sources", {
+          sources: used.map((s) => ({
+            n: s.n,
+            path: s.path,
+            startLine: s.startLine,
+            endLine: s.endLine,
+            url: hitUrl(repo, s),
+            cited: false,
+          })),
+        }),
+      onToken: (t) => {
+        if (!ac.signal.aborted) send("token", { t });
+      },
+    });
+    if (ac.signal.aborted) return; // client left: save nothing
+
+    const sources = result.notFound
+      ? []
+      : result.sources.map((s) => ({
+          n: s.n,
+          path: s.path,
+          startLine: s.startLine,
+          endLine: s.endLine,
+          url: hitUrl(repo, s),
+          cited: s.cited,
+        }));
+    const model = result.model ?? null;
+    const usedFallback = result.usedFallback ?? false;
+    const saved = await Message.create({
+      repoId: repo._id,
+      userId: req.user._id,
+      question,
+      answer: result.answer,
+      notFound: result.notFound,
+      sources,
+      model,
+      usedFallback,
+      ...(repo.expiresAt ? { expiresAt: repo.expiresAt } : {}),
+    });
+    send("done", {
+      id: String(saved._id),
+      answer: result.answer,
+      notFound: result.notFound,
+      sources,
+      model,
+      usedFallback,
+      usage: result.usage ?? null,
+    });
+  } catch (err) {
+    if (!ac.signal.aborted) send("error", toStreamError(err));
+  } finally {
+    clearInterval(heartbeat);
+    if (!res.writableEnded) res.end();
+  }
 });
