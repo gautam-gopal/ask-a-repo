@@ -305,6 +305,15 @@ describe("completion detection (regression)", () => {
       "BAD_RESPONSE",
     );
   });
+
+  it("finish_reason length is marked truncated so the route can explain it", async () => {
+    fetchMock.mockImplementation(async () =>
+      sse(chunk({ content: "Hi" }) + chunk({}, "length") + "data: [DONE]\n\n"),
+    );
+    const err = await failure(generateStream({ messages: MSGS }));
+    expect(err.code).toBe("BAD_RESPONSE");
+    expect(err.details.truncated).toBe(true);
+  });
 });
 
 describe("usage and request options", () => {

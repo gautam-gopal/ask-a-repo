@@ -96,6 +96,7 @@ beforeEach(async () => {
   retrieve.mockReset();
   generateStream.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
   a1 = await agentFor("one@example.com");
   a2 = await agentFor("two@example.com");
 });
@@ -227,6 +228,32 @@ describe("stream", () => {
     expect(generateStream).not.toHaveBeenCalled();
     expect(messages).toHaveLength(1);
     expect(messages[0]).toMatchObject({ notFound: true, answer: null });
+  });
+
+  it("an output-limit failure is ANSWER_TOO_LONG and saves nothing", async () => {
+    const r = await seed();
+    retrieve.mockResolvedValue([hit()]);
+    generateStream.mockImplementation(async ({ onToken }) => {
+      onToken("partial ");
+      throw new LlmError("BAD_RESPONSE", "x", { truncated: true });
+    });
+    const res = await stream(a1, r._id);
+    expect(parseEvents(res.body).at(-1)).toEqual({
+      event: "error",
+      data: {
+        code: "ANSWER_TOO_LONG",
+        message: "The answer was too long to finish. Try a narrower question.",
+      },
+    });
+    expect(messages).toHaveLength(0);
+  });
+
+  it("any other BAD_RESPONSE stays ANSWER_FAILED", async () => {
+    const r = await seed();
+    retrieve.mockResolvedValue([hit()]);
+    generateStream.mockRejectedValue(new LlmError("BAD_RESPONSE", "x"));
+    const res = await stream(a1, r._id);
+    expect(parseEvents(res.body).at(-1).data.code).toBe("ANSWER_FAILED");
   });
 
   it("an error after tokens sends an error event, saves nothing, leaks nothing", async () => {

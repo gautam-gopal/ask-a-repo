@@ -1,7 +1,7 @@
 // SECURITY: answers, questions and server text are rendered as plain text only (D-053, D-057).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { askQuestion, getRepo, listMessages } from "../api.js";
+import { askStream, getRepo, listMessages } from "../api.js";
 import { ErrorMessage, Spinner, useTitle } from "../components.jsx";
 import {
   formatAskError,
@@ -11,6 +11,7 @@ import {
 } from "../chatHelpers.js";
 
 const MAX_QUESTION = 500;
+const PIN_THRESHOLD_PX = 80;
 
 function Answer({ msg, onChip }) {
   if (msg.notFound)
@@ -94,6 +95,45 @@ function Turn({ msg, flash, onChip }) {
   );
 }
 
+// The answer being streamed (or a stopped / interrupted one). Not saved server-side.
+function LiveTurn({ live, flash, onChip }) {
+  const streaming = live.status === "streaming";
+  return (
+    <li className="turn" aria-busy={streaming}>
+      <p className="q">{live.question}</p>
+      {live.text !== "" ? (
+        <Answer
+          msg={{
+            id: "live",
+            answer: live.text,
+            sources: live.sources,
+            notFound: false,
+          }}
+          onChip={onChip}
+        />
+      ) : (
+        streaming && (
+          <p className="muted">
+            <Spinner /> Searching the code and writing an answer...
+          </p>
+        )
+      )}
+      <Sources msgId="live" sources={live.sources} flash={flash} />
+      {live.status === "stopped" && (
+        <p className="muted small">
+          Stopped. This partial answer was not saved.
+        </p>
+      )}
+      {live.status === "error" && (
+        <p className="muted small">
+          This answer was cut off and was not saved. Your question is still in
+          the box.
+        </p>
+      )}
+    </li>
+  );
+}
+
 export default function ChatPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -102,31 +142,81 @@ export default function ChatPage() {
   const [loadError, setLoadError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [text, setText] = useState("");
-  const [pending, setPending] = useState(null); // the question being answered
+  // { question, text, sources, status: "streaming" | "stopped" | "error" } or null
+  const [live, setLive] = useState(null);
   const [error, setError] = useState(null);
   const [flash, setFlash] = useState(null);
   const [announce, setAnnounce] = useState("");
 
   const alive = useRef(false);
   const sending = useRef(false);
+  const abortRef = useRef(null); // AbortController of the stream in flight
+  const textRef = useRef(""); // tokens accumulate here; state is updated once per frame
+  const raf = useRef(0);
+  const pinned = useRef(true); // true while the user is at the bottom
   const inputRef = useRef(null);
   const endRef = useRef(null);
   const flashTimer = useRef(null);
+
+  const streaming = live?.status === "streaming";
 
   useTitle(
     repo ? `${repo.owner}/${repo.name} · Ask-a-Repo` : "Chat · Ask-a-Repo",
   );
 
+  const cancelFrame = useCallback(() => {
+    if (raf.current) {
+      cancelAnimationFrame(raf.current);
+      raf.current = 0;
+    }
+  }, []);
+  const syncText = (l) =>
+    l && l.text !== textRef.current ? { ...l, text: textRef.current } : l;
+  const flushNow = useCallback(() => {
+    cancelFrame();
+    setLive(syncText);
+  }, [cancelFrame]);
+  const schedule = useCallback(() => {
+    if (raf.current) return;
+    raf.current = requestAnimationFrame(() => {
+      raf.current = 0;
+      setLive(syncText);
+    });
+  }, []);
+  // Silent cancel: no state updates from the aborted send (its active() check fails).
+  const cancelStream = useCallback(() => {
+    const c = abortRef.current;
+    abortRef.current = null;
+    sending.current = false;
+    c?.abort();
+    cancelFrame();
+  }, [cancelFrame]);
+
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
+      cancelStream();
       clearTimeout(flashTimer.current);
     };
+  }, [cancelStream]);
+
+  useEffect(() => {
+    const onScroll = () => {
+      pinned.current =
+        window.innerHeight + window.scrollY >=
+        document.documentElement.scrollHeight - PIN_THRESHOLD_PX;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    cancelStream(); // switching repos or retrying: drop any stream from the previous view
+    setLive(null);
+    setError(null);
+    setText("");
     setLoadError(null);
     (async () => {
       try {
@@ -161,11 +251,12 @@ export default function ChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, navigate, reloadKey]);
+  }, [id, navigate, reloadKey, cancelStream]);
 
+  // Keep the bottom in view only while the user has not scrolled up.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
-  }, [repo, messages.length, pending]);
+    if (pinned.current) endRef.current?.scrollIntoView({ block: "end" });
+  }, [repo, messages.length, live]);
 
   const onChip = useCallback((msgId, n) => {
     const key = `${msgId}-${n}`;
@@ -177,42 +268,93 @@ export default function ChatPage() {
     flashTimer.current = setTimeout(() => setFlash(null), 2000);
   }, []);
 
+  // Error or drop: keep the partial text if there is any, otherwise remove the live turn.
+  function failLive() {
+    flushNow();
+    setLive((l) =>
+      l && l.text === "" && l.sources.length === 0
+        ? null
+        : l && { ...l, status: "error" },
+    );
+  }
+
   async function send() {
     if (sending.current) return;
     const question = text.trim();
     if (!question) return setError("Enter a question.");
     sending.current = true;
+    pinned.current = true;
+    textRef.current = "";
+    cancelFrame();
     setError(null);
-    setPending(question);
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const active = () => alive.current && abortRef.current === ctrl;
+    setLive({ question, text: "", sources: [], status: "streaming" });
+    setAnnounce("Searching the code and writing an answer.");
     try {
-      const r = await askQuestion(id, question);
-      if (!alive.current) return;
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: r.id,
-          question,
-          answer: r.answer,
-          notFound: r.notFound,
-          sources: r.sources ?? [],
-          model: r.model,
-          usedFallback: r.usedFallback,
+      await askStream({
+        repoId: id,
+        question,
+        signal: ctrl.signal,
+        onSources: (sources) => {
+          if (active()) setLive((l) => l && { ...l, sources });
         },
-      ]);
-      setText("");
-      setAnnounce(
-        r.notFound ? "No answer found in the repository." : (r.answer ?? ""),
-      );
+        onToken: (t) => {
+          if (!active()) return;
+          textRef.current += t;
+          schedule();
+        },
+        onDone: (d) => {
+          if (!active()) return;
+          cancelFrame();
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: d.id,
+              question,
+              answer: d.answer,
+              notFound: d.notFound,
+              sources: d.sources ?? [],
+              model: d.model,
+              usedFallback: d.usedFallback,
+            },
+          ]);
+          setLive(null);
+          setText("");
+          setAnnounce(
+            d.notFound
+              ? "No answer found in the repository."
+              : "Answer complete.",
+          );
+        },
+        onError: (e) => {
+          if (!active()) return;
+          failLive();
+          setError(formatAskError(e));
+        },
+      });
     } catch (err) {
-      if (!alive.current) return;
-      setError(formatAskError(err)); // the typed question stays in the box
+      if (!active()) return; // unmounted or navigated away: stay silent
+      if (err.code === "ABORTED") {
+        flushNow();
+        setLive((l) => l && { ...l, status: "stopped" });
+        setAnnounce("Stopped.");
+      } else {
+        failLive();
+        setError(formatAskError(err));
+      }
     } finally {
-      sending.current = false;
-      if (alive.current) {
-        setPending(null);
+      if (active()) {
+        abortRef.current = null;
+        sending.current = false;
         inputRef.current?.focus();
       }
     }
+  }
+
+  function stop() {
+    abortRef.current?.abort(); // send()'s catch marks the turn stopped
   }
 
   function onKeyDown(e) {
@@ -258,11 +400,12 @@ export default function ChatPage() {
         Answers cite code at commit {repo.commitSha?.slice(0, 7)}.
       </p>
 
+      {/* Announces start and completion only, never individual tokens. */}
       <div className="sr-only" role="status" aria-live="polite">
         {announce}
       </div>
 
-      {messages.length === 0 && !pending && (
+      {messages.length === 0 && !live && (
         <p className="muted">
           Ask a question about this repository, for example "Where is
           authentication handled?"
@@ -272,14 +415,7 @@ export default function ChatPage() {
         {messages.map((m) => (
           <Turn key={m.id} msg={m} flash={flash} onChip={onChip} />
         ))}
-        {pending && (
-          <li className="turn">
-            <p className="q">{pending}</p>
-            <p className="muted">
-              <Spinner /> Searching the code and writing an answer...
-            </p>
-          </li>
-        )}
+        {live && <LiveTurn live={live} flash={flash} onChip={onChip} />}
       </ul>
       <div ref={endRef} className="chat-end" />
 
@@ -294,7 +430,7 @@ export default function ChatPage() {
           rows={2}
           value={text}
           maxLength={MAX_QUESTION}
-          readOnly={pending !== null}
+          readOnly={streaming}
           placeholder="Ask about this repository (Enter to send, Shift+Enter for a new line)"
           onChange={(e) => {
             setText(e.target.value);
@@ -306,9 +442,15 @@ export default function ChatPage() {
           <span className="muted small">
             {text.length}/{MAX_QUESTION}
           </span>
-          <button type="button" onClick={send} disabled={pending !== null}>
-            {pending !== null ? "Sending..." : "Send"}
-          </button>
+          {streaming ? (
+            <button type="button" className="secondary" onClick={stop}>
+              Stop
+            </button>
+          ) : (
+            <button type="button" onClick={send}>
+              Send
+            </button>
+          )}
         </div>
       </div>
     </>

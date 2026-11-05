@@ -146,6 +146,8 @@ describe("formatAskError", () => {
     ["UPSTREAM_TIMEOUT", /too long/],
     ["ANSWER_FAILED", /try again/i],
     ["REPO_NOT_READY", /not ready/],
+    ["STREAM_INTERRUPTED", /interrupted/],
+    ["ANSWER_TOO_LONG", /narrower/],
   ])("maps %s", (code, re) =>
     expect(formatAskError({ code, message: "raw" })).toMatch(re),
   );

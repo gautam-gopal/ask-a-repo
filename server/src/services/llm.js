@@ -4,7 +4,7 @@
 //   LlmError { code, message, details, retryAfterSeconds }
 import { config } from "../config.js";
 
-export const MAX_TOKENS = 700; // answer length cap
+export const MAX_TOKENS = 1500; // answer cap; gpt-oss reasoning tokens count against it (D-073)
 export const TEMPERATURE = 0.1;
 export const REQUEST_TIMEOUT_MS = 30_000;
 export const MAX_RETRIES = 2; // network errors and 5xx only
@@ -392,6 +392,7 @@ async function streamOnce({ messages, model, signal, onToken, o }) {
     throw new LlmError(
       "BAD_RESPONSE",
       "The language model stopped before finishing its answer.",
+      { truncated: true },
     );
   if (finishReason !== "stop")
     throw new LlmError(

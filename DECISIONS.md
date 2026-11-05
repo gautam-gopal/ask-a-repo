@@ -492,3 +492,59 @@
 - Why: the first version treated either signal as success, which could persist an interrupted answer.
 - Trade-off: low effort may reduce answer quality on hard questions; Phase 10 can compare effort levels.
 - Status: parameter validity, terminator and usage location are unverified until groq-stream-probe.js is run live.
+
+## D-068: Batched rendering, one state update per animation frame
+
+- Decision: tokens are appended to a ref; a single requestAnimationFrame callback copies the ref into state. At most one render per frame however many tokens arrive. done, stop and error flush or cancel the pending frame synchronously.
+- Why: a fast model sends dozens of tokens a second, and re-running linkifyCitations and a React render per token wastes CPU on a phone.
+- Trade-off: rAF pauses in a hidden tab, so the text catches up when the tab returns or at done. Nothing is lost because tokens live in the ref.
+- What would change this: long answers still janking, which would mean memoising settled paragraphs.
+
+## D-069: Partial citation markers render as plain text
+
+- Decision: linkifyCitations runs on the partial text every frame, unchanged. An unfinished "[1", "[1, " or "【1" does not match the regex, so it is plain text until the closing bracket arrives, then it becomes a chip. Sources arrive before any token, so a complete marker is already valid.
+- Limit: inside a code fence that is not closed yet, a "[1]" on its own can briefly render as a chip. The final text replaces it on done.
+- Why: no new parsing code, so the tested rules (code spans, items[7], invalid numbers) hold during streaming too.
+
+## D-070: done replaces the streamed text
+
+- Decision: streamed tokens are raw model output. On done the live turn is removed and the saved message is added using done.answer (cleaned, citations normalised) and done.sources (cited flags). The sources event always has cited: false.
+- Why: the server is the source of truth for what was saved, so the screen after done equals the screen after a reload.
+- Trade-off: the text can change once at the end (a removed invalid [7], 【1】 turned into [1]).
+
+## D-071: Abort semantics
+
+- Decision: Stop aborts the fetch. The server sees the disconnect, aborts Groq and saves nothing (D-065). The partial text stays visible marked "stopped", is not in history, and the question stays in the box. Unmount and repo switch abort silently: every callback checks that its AbortController is still the current one, so no state updates happen after. A dropped or stalled connection (no bytes for 45 s, three missed heartbeats) or EOF without done/error is STREAM_INTERRUPTED: partial text kept, message shown, question kept, no automatic retry.
+- Pre-stream JSON errors (400, 401, 404, 409, 503) are ordinary ApiErrors; if nothing had arrived the live turn is removed and only the message shows.
+- Why: a retry would repeat quota spend and could duplicate text the user already saw.
+
+## D-072: aria-live announces events, not tokens
+
+- Decision: the polite status region says "Searching the code and writing an answer.", then "Answer complete." (or "No answer found in the repository." or "Stopped."). The answer paragraph is not a live region and has aria-busy while streaming. Errors use the existing role="alert" message.
+- Why: a live region on streaming text re-reads on every change and is unusable.
+- Trade-off: a screen reader user reads the finished answer on demand instead of having it read out.
+
+## D-073: 1500 output tokens, concise prompt, truncation is its own error
+
+- Context: a detailed question failed with finish_reason "length" at MAX_TOKENS 700. Reasoning tokens on gpt-oss count against max_completion_tokens (confirmed by this failure, previously assumed in D-039 and D-067).
+- Decision: MAX_TOKENS 1500, and prompt rule 4 asks for under about 250 words. Strict completion stays: a length stop is never saved or shown as success. It is LlmError BAD_RESPONSE with details.truncated, mapped to ANSWER_TOO_LONG (502) with a message telling the user to narrow the question. Other BAD_RESPONSE stays ANSWER_FAILED.
+- Why: a retry of the same question fails the same way, so "try again later" was wrong advice. Worst-case request is about 6 to 6.5k tokens against a free limit I believe is about 8k per minute (verify in the Groq console). Higher would risk the per-minute cap.
+- No timeout change: idle and header timeouts are per gap, not total, and the 15 s heartbeat covers the client idle timer.
+- What would change this: measured token usage from Groq, or still seeing truncation, which would mean lowering reasoning effort or the excerpt budget before raising the cap.
+
+## D-074: Off-topic questions are not notFound until the threshold is calibrated
+
+- Decision: notFound means only "no hits or best score below SEARCH_MIN_SCORE". With the 0.5 placeholder and compressed BGE scores the gate almost never fires, so an off-topic question reaches the model, which correctly replies "The provided excerpts do not contain the answer." This is a normal answer (answer.test.js covers it).
+- Why not patch the client: matching the model's sentence is brittle, and the gate belongs on the server. Sources shown with that answer have cited false.
+- Fix: Phase 10 measures scores for on-topic versus off-topic questions and sets SEARCH_MIN_SCORE.
+
+## D-075: Save, then send done (checked, no change)
+
+- Order: stream completes, abort check, Message.create, send done. A kill during the create round trip means the client has all tokens but no done (shown as interrupted) while the write still lands, so history can hold a full answer the UI called interrupted.
+- Why kept: done must carry a saved id. Done-before-save could show success for an answer that was never stored. History never contains a partial answer.
+- What would change this: a client that reloads history after STREAM_INTERRUPTED.
+
+## D-076: Safe failure logging for the stream route
+
+- Decision: toStreamError logs one console.warn line with error class and code for provider errors (plus "output limit" for truncation). Unknown errors keep the existing console.error with stack.
+- Why: ad-hoc logging of err.message and cause can leak connection strings. Class and code are fixed strings and were enough to diagnose A.

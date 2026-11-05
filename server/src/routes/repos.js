@@ -106,6 +106,18 @@ function mapAskError(err, res) {
         "UPSTREAM_TIMEOUT",
         "The request took too long. Try again.",
       );
+    case "BAD_RESPONSE":
+      if (llm && err.details?.truncated)
+        return new AppError(
+          502,
+          "ANSWER_TOO_LONG",
+          "The answer was too long to finish. Try a narrower question.",
+        );
+      return new AppError(
+        502,
+        "ANSWER_FAILED",
+        "Answering failed. Try again later.",
+      );
     default:
       return new AppError(
         502,
@@ -120,8 +132,14 @@ const HEARTBEAT_MS = 15_000;
 // Same mapping as mapAskError, but safe after headers are sent (no res.set) and returns a payload.
 function toStreamError(err) {
   const mapped = mapAskError(err, { set() {} });
-  if (mapped instanceof AppError)
+  if (mapped instanceof AppError) {
+    // Fixed fields only: never err.message, details bodies or causes (could hold secrets).
+    if (err instanceof LlmError || err instanceof EmbeddingError)
+      console.warn(
+        `Ask stream failed: ${err.name} ${err.code}${err.details?.truncated ? " (output limit)" : ""}`,
+      );
     return { code: mapped.code, message: mapped.message };
+  }
   console.error("Ask stream failed:", mapped?.stack ?? mapped);
   return { code: "INTERNAL", message: "Something went wrong" };
 }
@@ -460,7 +478,9 @@ reposRouter.post("/:id/ask/stream", validate(askSchema), async (req, res) => {
       usage: result.usage ?? null,
     });
   } catch (err) {
-    if (!ac.signal.aborted) send("error", toStreamError(err));
+    if (!ac.signal.aborted) {
+      send("error", toStreamError(err));
+    }
   } finally {
     clearInterval(heartbeat);
     if (!res.writableEnded) res.end();

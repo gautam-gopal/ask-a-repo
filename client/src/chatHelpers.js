@@ -62,6 +62,10 @@ const ASK_MESSAGES = {
   LLM_RATE_LIMITED:
     "The language model is busy. Wait about a minute, then press Send again.",
   UPSTREAM_TIMEOUT: "The request took too long. Press Send to try again.",
+  STREAM_INTERRUPTED:
+    "The connection was interrupted before the answer finished. Press Send to try again.",
+  ANSWER_TOO_LONG:
+    "The answer was too long to finish. Try a narrower question, for example about one file or function.",
   ANSWER_FAILED: "Answering failed on the server. Press Send to try again.",
   EMBEDDING_FAILED: "Search failed on the server. Press Send to try again.",
   REPO_NOT_READY:
