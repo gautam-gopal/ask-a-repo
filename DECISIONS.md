@@ -581,3 +581,48 @@
 - Decision: eval chunks use a fixed eval userId and a fresh repoId per eval repo, with expiresAt one day ahead. The run deletes by that userId before starting (crash leftovers) and in finally. No Repo documents exist, so the app cannot reach them.
 - Why: the eval must never read or write real user data, and the TTL is the backstop if cleanup fails.
 - Limit: two eval runs at the same time would delete each other's chunks.
+
+## D-082: Baseline retrieval results
+
+- Setup: window 50, overlap 10, max-chars 1500, path prefix on, query prefix off, merge on. 2 repos, 873 chunks (avg 1294.6 chars), 24 on-topic and 8 off-topic questions. File-level hit (D-078).
+- Result: hit@1 8/24 (33.3%), hit@3 18/24 (75.0%), hit@5 20/24 (83.3%), MRR 0.544, average rank of first hit 2.00.
+- By kind (hit@5): exact-identifier 6/8 (75.0%), conceptual 9/10 (90.0%), multi-file 5/6 (83.3%).
+- Failures (4): 2 exact-identifier, 1 conceptual, 1 multi-file. In all four, test or frontend files outranked the backend implementation.
+- Limits: 24 questions, so one question is 4.2 points of hit@5. Indicative, not proof.
+- What would change this: the experiment runs (10B follow-up) and the overview questions.
+
+## D-083: On-topic and off-topic top scores overlap
+
+- Measured (top score per question): on-topic n=24, min 0.820, median 0.862, max 0.889. Off-topic n=8, min 0.767, p25 0.781, median 0.790, p75 0.816, max 0.845.
+- Overlap: 2 of 8 off-topic scores (0.830, 0.845) are above the lowest on-topic score (0.820). No threshold rejects all off-topic questions and keeps all on-topic ones.
+- Why: BGE cosine scores are compressed (D-023), and any code question shares vocabulary with some chunk, so an unrelated question still finds a "nearest" chunk.
+- Consequence: a score gate can only remove the clearest misses. Tool: server/eval/threshold-sweep.js prints false-not-found and off-topic rejection rates from 0.70 to 0.90 and never writes config.
+- What would change this: a reranker or a different model with better separation.
+
+## D-084: Prefer answering over wrongly refusing; provisional threshold 0.79
+
+- Decision: SEARCH_MIN_SCORE default is 0.79.
+- Evidence: Expanded baseline contains 30 on-topic and 8 off-topic questions, including 6 overview questions.
+- At 0.790: 30/30 on-topic questions pass, 4/8 off-topic questions are rejected, and 6/6 overview questions pass.
+- At 0.795: identical measured outcomes, but 0.790 provides a slightly larger safety margin.
+- At 0.800: one on-topic question is rejected, including one overview question.
+- Policy: A wrong refusal of a legitimate question is worse than allowing an off-topic question through. The prompt's abstention instruction provides a second layer of protection.
+- Status: Provisional. The dataset is small and results are indicative, not proof.
+- Revisit when the evaluation dataset grows or retrieval behaviour changes.
+
+## D-085: "overview" question kind
+
+- Context: vague questions such as "what does this project do?" match no single chunk, so they probably score lower than specific ones and a threshold could reject them wrongly.
+- Decision: a fifth kind, overview, counted as on-topic (it needs at least one expected path, for example README.md or package.json). It has its own metrics group and its own pass rate in the sweep. The CSV columns are unchanged (the old rows would no longer line up), so the per-kind overview numbers live in runs/<label>.md and .json.
+- Note: adding questions changes the overall numbers. The baseline is re-run once with the new set, and results.csv keeps both baseline rows (compare.js uses the newest).
+
+## D-086: Exclude-tests experiment (not a production change)
+
+- Context: the expanded baseline had 6 on-topic failures. Test files outranked expected implementation files in the two exact-identifier failures and contributed to other failures.
+- Experiment: `--exclude-tests on` removed 58 test files before chunking, reducing the corpus from 873 to 560 chunks. The embedding cache had 598 hits and 0 misses.
+- Results: on-topic Hit@5 improved from 80.0% (24/30) to 86.7% (26/30), and MRR improved from 0.547 to 0.650.
+- Exact-identifier impact: both `im-exact-02` and `im-exact-03` changed from misses to top-5 hits.
+- Remaining failures: `im-concept-03`, `im-multi-01`, `im-overview-01`, and `im-overview-02` still missed their expected files.
+- Decision: keep test exclusion as an evaluation-only option. Production ingestion remains unchanged.
+- Why: the observed improvement is encouraging, but the dataset is small and does not measure questions about how code is tested. Excluding tests could make those questions harder to answer.
+- Revisit after adding test-focused questions and evaluating alternatives such as a path-based score penalty or a user-facing toggle.

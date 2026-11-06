@@ -5,9 +5,10 @@ export const KINDS = [
   "exact-identifier",
   "conceptual",
   "multi-file",
+  "overview",
   "off-topic",
 ];
-export const ON_TOPIC_KINDS = KINDS.slice(0, 3);
+export const ON_TOPIC_KINDS = KINDS.filter((k) => k !== "off-topic");
 export const TOP_K = 5;
 export const CHARS_PER_TOKEN = 4; // ESTIMATE, same as the rest of the project
 export const TOKEN_LIMIT = 512;
@@ -110,6 +111,7 @@ export const DEFAULTS = Object.freeze({
   prefix: true,
   queryPrefix: false,
   merge: true,
+  excludeTests: false,
   label: null,
   yes: false,
 });
@@ -121,12 +123,14 @@ const FLAGS = {
   "--prefix": "prefix",
   "--query-prefix": "queryPrefix",
   "--merge": "merge",
+  "--exclude-tests": "excludeTests",
   "--label": "label",
 };
-const BOOL_KEYS = new Set(["prefix", "queryPrefix", "merge"]);
+const BOOL_KEYS = new Set(["prefix", "queryPrefix", "merge", "excludeTests"]);
 
+// The default label is unchanged; only an exclude-tests run gets the -x1 suffix.
 export const autoLabel = (c) =>
-  `w${c.window}-o${c.overlap}-c${c.maxChars}-p${c.prefix ? 1 : 0}-q${c.queryPrefix ? 1 : 0}-m${c.merge ? 1 : 0}`;
+  `w${c.window}-o${c.overlap}-c${c.maxChars}-p${c.prefix ? 1 : 0}-q${c.queryPrefix ? 1 : 0}-m${c.merge ? 1 : 0}${c.excludeTests ? "-x1" : ""}`;
 
 export function parseConfig(argv, defaults = DEFAULTS) {
   const cfg = { ...defaults };
@@ -202,8 +206,8 @@ const quantile = (sorted, p) => {
 };
 
 export function scoreStats(scores) {
-  if (!scores.length) return null;
-  const s = [...scores].sort((a, b) => a - b);
+  const s = scores.filter(Number.isFinite).sort((a, b) => a - b); // null and NaN are ignored
+  if (!s.length) return null;
   return {
     n: s.length,
     min: s[0],
@@ -301,3 +305,97 @@ export const pct = (x) =>
   x === null || x === undefined ? "-" : `${(x * 100).toFixed(1)}%`;
 export const fix = (x, d = 3) =>
   x === null || x === undefined ? "-" : x.toFixed(d);
+
+// ---- exclude-tests experiment (D-086) ----
+// EXPERIMENT ONLY, not a production change: excluding tests would stop "how is X tested"
+// questions from working. Matches /test/, /tests/, /__tests__/ directories and
+// *.test.* / *.spec.* files with js, jsx, ts or tsx.
+export function isTestPath(p) {
+  const s = `/${String(p).toLowerCase()}`;
+  return (
+    s.includes("/test/") ||
+    s.includes("/tests/") ||
+    s.includes("/__tests__/") ||
+    /\.(test|spec)\.(js|jsx|ts|tsx)$/.test(s)
+  );
+}
+
+// ---- threshold sweep (D-083) ----
+// results: [{ kind, topScore }]. A question PASSES a threshold when topScore >= t, which is
+// the rule in answer.js (best score below SEARCH_MIN_SCORE means notFound).
+export function sweepThresholds(
+  results,
+  { from = 0.7, to = 0.9, step = 0.005 } = {},
+) {
+  const on = results.filter((r) => r.kind !== "off-topic");
+  const off = results.filter((r) => r.kind === "off-topic");
+  const ov = results.filter((r) => r.kind === "overview");
+  const rows = [];
+  const steps = Math.round((to - from) / step);
+  for (let i = 0; i <= steps; i++) {
+    const t = Math.round((from + i * step) * 1000) / 1000;
+    const pass = (rs) =>
+      rs.filter((r) => Number.isFinite(r.topScore) && r.topScore >= t).length;
+    rows.push({
+      t,
+      onN: on.length,
+      onPass: pass(on),
+      offN: off.length,
+      offRejected: off.length - pass(off),
+      ovN: ov.length,
+      ovPass: pass(ov),
+    });
+  }
+  return rows;
+}
+
+// Rejections only grow as t rises, so "highest t with at most N on-topic rejections" is well defined.
+export function thresholdMarkers(rows) {
+  const highest = (max) => {
+    let best = null;
+    for (const r of rows) if (r.onN - r.onPass <= max) best = r.t;
+    return best;
+  };
+  return { zero: highest(0), atMostOne: highest(1) };
+}
+
+// ---- per-question result row (regression: topScore went missing from the JSON and the stats) ----
+export const finiteOrNull = (x) =>
+  typeof x === "number" && Number.isFinite(x) ? x : null;
+
+// The only place a result row is built. hits: [{ path, startLine, endLine, score }] best first.
+// topScore is the first hit's score, or null when there are no hits (never 0, never NaN).
+export function makeResultRow(q, hits, topK = TOP_K) {
+  return {
+    id: q.id,
+    repoId: q.repoId,
+    kind: q.kind,
+    question: q.question.trim(),
+    expectedPaths: q.expectedPaths,
+    rank: rankOf(
+      hits.map((h) => h.path),
+      q.expectedPaths,
+    ),
+    topScore: finiteOrNull(hits[0]?.score),
+    top: hits.slice(0, topK).map((h) => ({
+      path: h.path,
+      lines: `${h.startLine}-${h.endLine}`,
+      score: h.score,
+    })),
+  };
+}
+
+// Returns problems (empty = fine). Run before any report is written.
+export function checkResultRows(rows) {
+  const errors = [];
+  for (const r of rows) {
+    if (!("topScore" in r)) errors.push(`${r.id}: topScore is missing`);
+    else if (r.topScore !== null && !Number.isFinite(r.topScore))
+      errors.push(`${r.id}: topScore is not a finite number`);
+    else if ((r.top?.length ?? 0) === 0 && r.topScore !== null)
+      errors.push(`${r.id}: no hits but topScore is set`);
+    else if (r.top?.length > 0 && r.topScore !== r.top[0].score)
+      errors.push(`${r.id}: topScore differs from top[0].score`);
+  }
+  return errors;
+}

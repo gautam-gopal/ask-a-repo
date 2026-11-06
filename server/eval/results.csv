@@ -1,2 +1,5 @@
 label,date,window,overlap,max_chars,prefix,query_prefix,merge,questions,chunks,avg_chars,max_chunk_chars,over512_frac,hit1,hit3,hit5,mrr,avg_rank,hit5_exact,hit5_conceptual,hit5_multi,off_top_median,off_top_max,on_top_min,on_top_median,neurons_used,cache_hits,cache_misses
 baseline,2026-11-06T09:33:38.288Z,50,10,1500,on,off,on,32,873,1294.6,1500,0,0.3333,0.75,0.8333,0.5444,2,0.75,0.9,0.8333,0.7904,0.8445,0.82,0.8619,1766.3,0,905
+baseline,2026-11-06T14:10:08.540Z,50,10,1500,on,off,on,38,873,1294.6,1500,0,0.3667,0.7333,0.8,0.5467,1.9167,0.75,0.9,0.8333,NaN,,,NaN,1,905,6
+baseline,2026-11-06T19:59:15.549Z,50,10,1500,on,off,on,38,873,1294.6,1500,0,0.3667,0.7333,0.8,0.5467,1.9167,0.75,0.9,0.8333,0.7904,0.8445,0.7988,0.8598,0,911,0
+no-tests,2026-11-06T20:19:28.420Z,50,10,1500,on,off,on,38,560,1265.9,1500,0,0.4667,0.8667,0.8667,0.65,1.5769,1,0.9,0.8333,0.7904,0.8445,0.7988,0.8586,0,598,0

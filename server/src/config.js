@@ -46,8 +46,9 @@ const schema = z.object({
     .string()
     .regex(/^[A-Za-z0-9._\/-]+$/, "must be a model id")
     .default("openai/gpt-oss-20b"),
-  // PLACEHOLDER until the Phase 10 eval calibrates it (see answer.js).
-  SEARCH_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
+  // PROVISIONAL 0.80 (D-084): just under the lowest on-topic top score of the baseline eval
+  // (0.820). Re-check with `node server/eval/threshold-sweep.js <label>` after the overview questions.
+  SEARCH_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.79),
 });
 
 // Treat empty values (e.g. "PORT=") as unset so defaults apply.

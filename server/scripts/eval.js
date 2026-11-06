@@ -1,6 +1,6 @@
 // Retrieval-only evaluation (Phase 10A). No LLM, no routes.
 //   node server/scripts/eval.js [--window N] [--overlap M] [--max-chars C] [--prefix on|off]
-//        [--query-prefix on|off] [--merge on|off] [--label NAME] [--yes]
+//        [--query-prefix on|off] [--merge on|off] [--exclude-tests on|off] [--label NAME] [--yes]
 // Without --yes it only prints the estimate. Metric: FILE-level hit (see D-078).
 import fs from "node:fs";
 import path from "node:path";
@@ -42,6 +42,9 @@ import {
   csvRow,
   pct,
   fix,
+  isTestPath,
+  makeResultRow,
+  checkResultRows,
 } from "../eval/lib.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -177,10 +180,31 @@ async function main() {
     process.exit(1);
   }
 
+  if (cfg.excludeTests) {
+    const bad = data.questions.flatMap((q) =>
+      q.expectedPaths
+        .filter(isTestPath)
+        .map(
+          (p) =>
+            `question "${q.id}": expected path "${p}" is a test file and would be excluded`,
+        ),
+    );
+    if (bad.length) {
+      console.error("--exclude-tests conflicts with expected paths:");
+      bad.forEach((p) => console.error(`  - ${p}`));
+      process.exit(1);
+    }
+  }
+
   const perRepo = new Map();
   const allChunks = [];
+  let droppedFiles = 0;
   for (const [id, s] of snaps) {
-    const { chunks } = chunkRepo(s.files, {
+    const files = cfg.excludeTests
+      ? s.files.filter((f) => !isTestPath(f.path))
+      : s.files;
+    droppedFiles += s.files.length - files.length;
+    const { chunks } = chunkRepo(files, {
       windowLines: cfg.window,
       overlapLines: cfg.overlap,
       maxChunkChars: cfg.maxChars,
@@ -218,7 +242,7 @@ async function main() {
 
   console.log(`\nRun: ${cfg.label}`);
   console.log(
-    `Settings: window ${cfg.window}, overlap ${cfg.overlap}, max-chars ${cfg.maxChars}, prefix ${cfg.prefix ? "on" : "off"}, query-prefix ${cfg.queryPrefix ? "on" : "off"}, merge ${cfg.merge ? "on" : "off"}`,
+    `Settings: window ${cfg.window}, overlap ${cfg.overlap}, max-chars ${cfg.maxChars}, prefix ${cfg.prefix ? "on" : "off"}, query-prefix ${cfg.queryPrefix ? "on" : "off"}, merge ${cfg.merge ? "on" : "off"}, exclude-tests ${cfg.excludeTests ? "on" : "off"}`,
   );
   console.log(
     `Chunks: ${stats.chunks} (avg ${stats.avgChars} chars, max ${stats.maxChars}; est. ${pct(stats.over512Frac)} over 512 tokens, chars/4)`,
@@ -226,6 +250,10 @@ async function main() {
   console.log(
     `To embed: ${missDocs.length} chunk texts + ${missQ.length} queries (cache: ${cacheHits} hits, ${cacheMisses} misses)`,
   );
+  if (cfg.excludeTests)
+    console.log(
+      `Exclude-tests: dropped ${droppedFiles} files. Chunk texts are unchanged, so a run after a baseline should show 0 chunk misses (cache: ${cacheHits} hits, ${cacheMisses} misses).`,
+    );
   console.log(
     `Estimated spend now: ~${estMiss.estTokens} tokens, ~${Math.round(estMiss.estNeurons * 10) / 10} neurons of ${DAILY_FREE_NEURONS}/day (estimate; chars/4 undercounts code)`,
   );
@@ -314,23 +342,7 @@ async function main() {
         limit: TOP_K,
         merge: cfg.merge,
       });
-      results.push({
-        id: q.id,
-        repoId: q.repoId,
-        kind: q.kind,
-        question: qText(q),
-        expectedPaths: q.expectedPaths,
-        rank: rankOf(
-          hits.map((h) => h.path),
-          q.expectedPaths,
-        ),
-        topScore: hits[0]?.score ?? 0,
-        top: hits.slice(0, 3).map((h) => ({
-          path: h.path,
-          lines: `${h.startLine}-${h.endLine}`,
-          score: h.score,
-        })),
-      });
+      results.push(makeResultRow(q, hits));
     }
   } finally {
     if (mongoose.connection.readyState === 1) {
@@ -346,6 +358,10 @@ async function main() {
       await mongoose.disconnect();
     }
   }
+
+  const rowProblems = checkResultRows(results);
+  if (rowProblems.length)
+    throw new Error(`Bad result rows: ${rowProblems.join("; ")}`);
 
   // 4. Report.
   const m = computeMetrics(results);
@@ -418,8 +434,10 @@ async function main() {
   const scoreLine = (name, s) =>
     `- ${name}: ${s ? `n ${s.n}, min ${fix(s.min)}, p25 ${fix(s.p25)}, median ${fix(s.median)}, p75 ${fix(s.p75)}, max ${fix(s.max)}` : "none"}`;
   const top3 = (r) =>
-    r.top.map((t) => `${t.path}:${t.lines} (${fix(t.score)})`).join("; ") ||
-    "(no results)";
+    r.top
+      .slice(0, 3)
+      .map((t) => `${t.path}:${t.lines} (${fix(t.score)})`)
+      .join("; ") || "(no results)";
   const md = [
     `# Eval run: ${cfg.label}`,
     "",
@@ -427,7 +445,7 @@ async function main() {
     "",
     "## Settings",
     `- window ${cfg.window}, overlap ${cfg.overlap}, max-chars ${cfg.maxChars}`,
-    `- path prefix ${rec.prefix}, query prefix ${rec.query_prefix}, merge ${rec.merge}`,
+    `- path prefix ${rec.prefix}, query prefix ${rec.query_prefix}, merge ${rec.merge}, exclude-tests ${cfg.excludeTests ? "on" : "off"}`,
     `- model ${config.EMBEDDING_MODEL}, ${config.EMBEDDING_DIMENSIONS} dims, top ${TOP_K}`,
     ...[...snaps].map(
       ([id, s]) =>
@@ -471,8 +489,32 @@ async function main() {
   ].join("\n");
   fs.mkdirSync(RUNS_DIR, { recursive: true });
   fs.writeFileSync(path.join(RUNS_DIR, `${cfg.label}.md`), md);
+  const json = {
+    label: cfg.label,
+    date: rec.date,
+    settings: {
+      window: cfg.window,
+      overlap: cfg.overlap,
+      maxChars: cfg.maxChars,
+      prefix: cfg.prefix,
+      queryPrefix: cfg.queryPrefix,
+      merge: cfg.merge,
+      excludeTests: cfg.excludeTests,
+    },
+    results: results.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      topScore: r.topScore,
+      top: r.top, // top 5: { path, lines, score }
+      rank: r.rank, // rank of the first expected file, null if none
+    })),
+  };
+  fs.writeFileSync(
+    path.join(RUNS_DIR, `${cfg.label}.json`),
+    JSON.stringify(json, null, 2),
+  );
   console.log(
-    `\nWrote server/eval/runs/${cfg.label}.md and appended server/eval/results.csv`,
+    `\nWrote server/eval/runs/${cfg.label}.md and .json, and appended server/eval/results.csv`,
   );
 }
 

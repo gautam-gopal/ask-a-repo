@@ -12,6 +12,11 @@ import {
   csvHeader,
   csvRow,
   CSV_COLUMNS,
+  isTestPath,
+  sweepThresholds,
+  thresholdMarkers,
+  makeResultRow,
+  checkResultRows,
 } from "../eval/lib.js";
 
 const SHA = "a".repeat(40);
@@ -346,5 +351,178 @@ describe("csv", () => {
   });
   it("refuses values that would need quoting", () => {
     expect(() => csvRow({ label: "a,b" })).toThrow();
+  });
+});
+
+describe("overview kind", () => {
+  it("validates like the other on-topic kinds", () => {
+    const d = valid();
+    d.questions.push({
+      id: "q4",
+      repoId: "r1",
+      question: "what does this project do?",
+      expectedPaths: ["README.md"],
+      kind: "overview",
+    });
+    expect(validateQuestions(d)).toEqual([]);
+    d.questions[3].expectedPaths = [];
+    expect(validateQuestions(d).join("\n")).toMatch(/at least one/);
+  });
+  it("is on-topic with its own metrics group", () => {
+    const m = computeMetrics([
+      { kind: "overview", rank: 2, topScore: 0.8 },
+      { kind: "off-topic", rank: null, topScore: 0.7 },
+    ]);
+    expect(m.overall.n).toBe(1);
+    expect(m.byKind.overview).toMatchObject({ n: 1, hit5: 1, hit1: 0 });
+  });
+});
+
+describe("isTestPath", () => {
+  it.each([
+    ["server/test/a.js", true],
+    ["backend/tests/domain/x.js", true],
+    ["test/a.js", true],
+    ["src/__tests__/a.js", true],
+    ["src/a.test.js", true],
+    ["src/a.spec.tsx", true],
+    ["src/A.TEST.JS", true],
+    ["src/latest/a.js", false],
+    ["src/contest.js", false],
+    ["src/a.test.json", false],
+    ["src/testing.js", false],
+    ["server/src/services/github.js", false],
+  ])("%s -> %s", (p, expected) => expect(isTestPath(p)).toBe(expected));
+});
+
+describe("--exclude-tests", () => {
+  it("defaults to off and keeps the default label", () => {
+    const c = parseConfig([]);
+    expect(c.excludeTests).toBe(false);
+    expect(c.label).toBe("w50-o10-c1500-p1-q0-m1");
+  });
+  it("turns on and adds -x1 to the label", () => {
+    const c = parseConfig(["--exclude-tests", "on"]);
+    expect(c.excludeTests).toBe(true);
+    expect(c.label).toBe("w50-o10-c1500-p1-q0-m1-x1");
+    expect(() => parseConfig(["--exclude-tests", "maybe"])).toThrow(RangeError);
+  });
+});
+
+describe("threshold sweep", () => {
+  const rs = [
+    { kind: "conceptual", topScore: 0.85 },
+    { kind: "conceptual", topScore: 0.82 },
+    { kind: "overview", topScore: 0.81 },
+    { kind: "off-topic", topScore: 0.78 },
+    { kind: "off-topic", topScore: 0.83 },
+  ];
+  const rows = sweepThresholds(rs);
+
+  it("covers 0.70 to 0.90 in 0.005 steps", () => {
+    expect(rows).toHaveLength(41);
+    expect(rows[0].t).toBe(0.7);
+    expect(rows.at(-1).t).toBe(0.9);
+  });
+  it("counts passes, off-topic rejections and the overview kind", () => {
+    expect(rows.find((r) => r.t === 0.8)).toMatchObject({
+      onN: 3,
+      onPass: 3,
+      offN: 2,
+      offRejected: 1,
+      ovN: 1,
+      ovPass: 1,
+    });
+    expect(rows.find((r) => r.t === 0.815)).toMatchObject({
+      onPass: 2,
+      ovPass: 0,
+    });
+  });
+  it("finds the highest threshold with 0 and with at most 1 on-topic rejection", () => {
+    expect(thresholdMarkers(rows)).toEqual({ zero: 0.81, atMostOne: 0.82 });
+  });
+  it("returns null when even 0.70 rejects too much", () => {
+    const low = sweepThresholds([{ kind: "conceptual", topScore: 0.5 }]);
+    expect(thresholdMarkers(low)).toEqual({ zero: null, atMostOne: 0.9 });
+  });
+});
+
+describe("result rows (topScore regression)", () => {
+  const q = {
+    id: "q1",
+    repoId: "r1",
+    question: "  where is auth  ",
+    expectedPaths: ["b.js"],
+    kind: "conceptual",
+  };
+  const hit = (path, score) => ({ path, startLine: 1, endLine: 9, score });
+
+  it("topScore is the first hit's score and matches top[0].score", () => {
+    const row = makeResultRow(q, [hit("a.js", 0.889429), hit("b.js", 0.8)]);
+    expect(row.topScore).toBe(0.889429);
+    expect(row.topScore).toBe(row.top[0].score);
+    expect(row.rank).toBe(2);
+    expect(row.question).toBe("where is auth");
+    expect(row.top[0]).toEqual({ path: "a.js", lines: "1-9", score: 0.889429 });
+  });
+
+  it("keeps at most 5 hits in top", () => {
+    const hits = Array.from({ length: 8 }, (_, i) =>
+      hit(`f${i}.js`, 0.9 - i / 100),
+    );
+    expect(makeResultRow(q, hits).top).toHaveLength(5);
+  });
+
+  it("no hits: topScore is null (not 0, not NaN), rank null", () => {
+    const row = makeResultRow(q, []);
+    expect(row.topScore).toBeNull();
+    expect(row.top).toEqual([]);
+    expect(row.rank).toBeNull();
+    expect(checkResultRows([row])).toEqual([]);
+  });
+
+  it("a non-finite score becomes null", () => {
+    expect(makeResultRow(q, [hit("a.js", NaN)]).topScore).toBeNull();
+  });
+
+  it("survives a JSON round trip with topScore present", () => {
+    const row = JSON.parse(
+      JSON.stringify(makeResultRow(q, [hit("a.js", 0.85)])),
+    );
+    expect(row).toHaveProperty("topScore", 0.85);
+  });
+
+  it("checkResultRows catches a missing or inconsistent topScore", () => {
+    const good = makeResultRow(q, [hit("a.js", 0.85)]);
+    const { topScore: _drop, ...missing } = good;
+    expect(checkResultRows([missing]).join()).toMatch(/missing/);
+    expect(checkResultRows([{ ...good, topScore: 0.5 }]).join()).toMatch(
+      /differs/,
+    );
+    expect(checkResultRows([{ ...good, topScore: NaN }]).join()).toMatch(
+      /finite/,
+    );
+    expect(
+      checkResultRows([{ ...makeResultRow(q, []), topScore: 0 }]).join(),
+    ).toMatch(/no hits/);
+    expect(checkResultRows([good])).toEqual([]);
+  });
+
+  it("stats and the sweep ignore null scores without NaN", () => {
+    const rows = [
+      { kind: "conceptual", rank: 1, topScore: 0.85 },
+      { kind: "conceptual", rank: null, topScore: null },
+      { kind: "off-topic", rank: null, topScore: null },
+      { kind: "off-topic", rank: null, topScore: 0.78 },
+    ];
+    const m = computeMetrics(rows);
+    expect(m.onTopicScores).toMatchObject({ n: 1, min: 0.85, max: 0.85 });
+    expect(m.offTopicScores).toMatchObject({ n: 1, median: 0.78 });
+    expect(scoreStats([null, NaN, undefined])).toBeNull();
+    const row = sweepThresholds(rows).find((r) => r.t === 0.7);
+    expect(row).toMatchObject({ onN: 2, onPass: 1, offN: 2, offRejected: 1 });
+    expect(JSON.stringify(sweepThresholds(rows))).not.toContain('null,"t"');
+    for (const r of sweepThresholds(rows))
+      for (const v of Object.values(r)) expect(Number.isNaN(v)).toBe(false);
   });
 });

@@ -24,6 +24,13 @@
       "question": "How are payments and invoices handled?",
       "expectedPaths": [],
       "kind": "off-topic"
+    },
+    {
+      "id": "nt-04",
+      "repoId": "nextalk",
+      "question": "What does this project do?",
+      "expectedPaths": ["README.md", "package.json"],
+      "kind": "overview"
     }
   ]
 }

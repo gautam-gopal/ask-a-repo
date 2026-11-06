@@ -2,9 +2,11 @@ import { config } from "../config.js";
 import { generate, generateStream } from "./llm.js";
 import { buildMessages, extractCitations } from "./prompt.js";
 
-// SEARCH_MIN_SCORE is a PLACEHOLDER (default 0.5, which filters almost nothing because
-// BGE cosine scores are compressed, D-023). It MUST be calibrated in the Phase 10 eval
-// from measured scores of on-topic versus off-topic questions. Do not trust it until then.
+// SEARCH_MIN_SCORE is PROVISIONAL (default 0.79, D-084), based on the
+// threshold sweep across 30 on-topic and 8 off-topic questions.
+// BGE cosine scores are compressed (D-023), so on-topic and off-topic
+// ranges overlap and this gate only catches the clearest misses.
+// The prompt's "excerpts do not contain the answer" rule is the second layer.
 const NOT_FOUND = Object.freeze({ notFound: true, answer: null, sources: [] });
 
 export async function answerQuestion(
