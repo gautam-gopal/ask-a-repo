@@ -20,20 +20,27 @@ Fill the TBD cells from `server/eval/results.csv` and `server/eval/runs/*.md`. N
 | multi-file         |   6 | 50.0% | 83.3% | 83.3% | 0.667 |
 | overview           |   6 | 50.0% | 66.7% | 66.7% | 0.556 |
 
-## 3. Experiments (one variable at a time, D-079)
+## 3. Experiments
 
-| label      | change                                 | hit@1 | hit@3 | hit@5 | MRR   | vs baseline (hit@5 points) |
-| ---------- | -------------------------------------- | ----- | ----- | ----- | ----- | -------------------------- |
-| baseline   | none                                   | 36.7% | 73.3% | 80.0% | 0.547 | 0                          |
-| qprefix-on | query prefix on                        | TBD   | TBD   | TBD   | TBD   | TBD                        |
-| merge-off  | merge off                              | TBD   | TBD   | TBD   | TBD   | TBD                        |
-| prefix-off | path prefix off                        | TBD   | TBD   | TBD   | TBD   | TBD                        |
-| w30        | window 30                              | TBD   | TBD   | TBD   | TBD   | TBD                        |
-| c3000      | max-chars 3000                         | TBD   | TBD   | TBD   | TBD   | TBD                        |
-| o0         | overlap 0                              | TBD   | TBD   | TBD   | TBD   | TBD                        |
-| no-tests   | exclude tests (experiment only, D-086) | 46.7% | 86.7% | 86.7% | 0.650 | +6.7                       |
+The original baseline uses all files. B2 uses the same retrieval and chunking settings but excludes test files for evaluation.
 
-One question is 3.3 points of Hit@5 (30 on-topic questions). Differences of one or two questions are noise.
+| label         | change                  | hit@1 | hit@3 | hit@5 |   MRR | comparison          |
+| ------------- | ----------------------- | ----: | ----: | ----: | ----: | ------------------- |
+| baseline      | Original configuration  | 36.7% | 73.3% | 80.0% | 0.547 | Reference           |
+| no-tests (B2) | Exclude test files      | 46.7% | 86.7% | 86.7% | 0.650 | +6.7 pp vs baseline |
+| b2-qprefix    | Query prefix on         | 46.7% | 76.7% | 83.3% | 0.604 | -3.4 pp vs B2       |
+| b2-nomerge    | Merge off               | 46.7% | 80.0% | 86.7% | 0.639 | 0.0 pp vs B2        |
+| b2-max1000    | Maximum characters 1000 | 46.7% | 73.3% | 83.3% | 0.607 | -3.4 pp vs B2       |
+| b2-w30o5      | Window 30, overlap 5    | 36.7% | 80.0% | 83.3% | 0.575 | -3.4 pp vs B2       |
+
+### Interpretation
+
+- B2 achieved the highest MRR (0.650) and tied for the highest Hit@5 (86.7%).
+- Disabling merge tied B2 on Hit@5 but produced a lower MRR (0.639).
+- Query prefix, smaller maximum chunk size, and smaller window/overlap did not improve overall retrieval.
+- B2 remains the preferred evaluation configuration: window 50, overlap 10, max-chars 1500, path prefix on, query prefix off, merge on.
+- Test exclusion remains evaluation-only (D-086). Production adoption requires a separate decision because test-focused questions have not yet been evaluated.
+- With 30 on-topic questions, one question changes Hit@5 by 3.3 percentage points. Differences of one or two questions should be interpreted cautiously.
 
 ## 4. Threshold (SEARCH_MIN_SCORE)
 
@@ -47,6 +54,7 @@ One question is 3.3 points of Hit@5 (30 on-topic questions). Differences of one 
 - The score ranges overlap. No threshold perfectly separates on-topic and off-topic questions.
 - Second layer: the prompt's "excerpts do not contain the answer" rule.
 - Limitations: 30 on-topic and 8 off-topic questions across two repositories. Results are indicative, not proof.
+- Final calibration is pending. Re-run the threshold sweep after selecting the production configuration; 0.79 remains provisional.
 
 ## 5. Failure analysis
 
@@ -90,4 +98,8 @@ The no-tests experiment is evaluation-only (D-086). It does not yet establish th
 
 ## 7. What I would do next
 
-- TBD after experiments. Candidates: function-aware chunking (stretch), hybrid keyword search for exact identifiers (Phase 11), a path-based score penalty for test files, a reranker, a larger and more varied question set.
+- Finalize the production decision on test-file exclusion, considering that test-focused questions have not yet been evaluated.
+- Adopt the selected retrieval and chunking settings if supported by the production decision.
+- Recalibrate SEARCH_MIN_SCORE using the threshold sweep after the final configuration is selected.
+- Update the README with the retrieval evaluation results and implement Explain-back (Phase 10C).
+- Consider hybrid keyword search for exact identifiers in Phase 11.

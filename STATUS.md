@@ -2,37 +2,47 @@
 
 ## Current phase
 
-Phase 10B — evaluation harness, threshold sweep, and no-tests experiment completed. The remaining retrieval-parameter experiments are pending. Next: complete those experiments, consolidate the findings, then move to Phase 10C.
+Phase 10B complete: evaluation harness, expanded 38-question dataset, threshold sweep, no-tests experiment, and four B2 retrieval experiments. Next: finalize the production configuration and threshold, then complete Phase 10C.
 
 ## What works
 
-- Live at https://ask-a-repo.onrender.com (Render free, auto-deploy from `main`). Phases 0 to 9 as before: authentication, GitHub client, chunker (window 50 / overlap 10 / max-chars 1500), embeddings (Cloudflare Workers AI, 768 dimensions), Atlas vector index `chunks_vector`, ingestion, retrieval, Groq answers (`openai/gpt-oss-120b`, fallback `openai/gpt-oss-20b`), streaming ask, and React client.
-- Evaluation (Phase 10): `server/scripts/eval.js` writes `server/eval/runs/<label>.md` and `.json` with per-question results (ID, kind, top score, top-five paths with line ranges and scores, and rank of the first expected-file hit), then appends to `server/eval/results.csv`.
-- Evaluation supports the `overview` question kind and `--exclude-tests on|off` (evaluation only, D-086). `server/eval/threshold-sweep.js <label>` evaluates thresholds from 0.70 to 0.90 in 0.005 increments and does not modify production configuration.
-- `SEARCH_MIN_SCORE` default is now **0.79** (provisional, D-084). Tests override it with `0.6` in `vitest.config.js`.
-- Current baseline: 30 on-topic and 8 off-topic questions, across two repositories, with 873 chunks. On-topic retrieval: Hit@1 36.7%, Hit@3 73.3%, Hit@5 80.0%, MRR 0.547, average rank 1.917.
-- Baseline on-topic top scores: min 0.799, p25 0.852, median 0.860, p75 0.873, max 0.889. Off-topic top scores: min 0.767, p25 0.781, median 0.790, p75 0.816, max 0.845. The distributions overlap.
-- Threshold sweep: at 0.790, 30/30 on-topic questions pass, 4/8 off-topic questions are rejected, and 6/6 overview questions pass. At 0.800, 29/30 on-topic questions pass and 5/6 overview questions pass. The 0.79 threshold remains provisional because the evaluation set is small and score distributions overlap.
-- No-tests experiment: excluding 58 test files reduced the corpus from 873 to 560 chunks. On-topic Hit@1 improved from 36.7% to 46.7%, Hit@3 from 73.3% to 86.7%, Hit@5 from 80.0% to 86.7%, and MRR from 0.547 to 0.650. Both exact-identifier misses (`im-exact-02` and `im-exact-03`) became top-five hits. Production indexing remains unchanged (D-086).
-- Server tests: `npm --prefix server test` — **538 tests across 23 files passed**. The suite runs without network access.
-- `DECISIONS.md` contains D-001 through D-086.
+- Live at [https://ask-a-repo.onrender.com](https://ask-a-repo.onrender.com) (Render free, auto-deploy from `main`). Phases 0 to 9: `/healthz`, auth, GitHub client, chunker (50 / 10 / 1500), embeddings (Cloudflare Workers AI, 768 dims), Chunk model, Atlas vector index `chunks_vector`, ingest pipeline, repo routes, retrieval and search, Groq answers (gpt-oss-120b, fallback gpt-oss-20b), `POST /api/repos/:id/ask`, `POST /api/repos/:id/ask/stream` (SSE), `GET /api/repos/:id/messages`, React client (auth, repos page, streaming chat page).
+- Phase 10 evaluation harness: `server/scripts/eval.js` performs retrieval-only evaluation using temporary chunks and real `$vectorSearch`. It reports file-level Hit@1/3/5, MRR, average rank, question-kind metrics, off-topic score distributions, and chunk statistics. `server/eval/lib.js` contains pure helpers; `server/eval/compare.js` compares recorded runs; `server/eval/threshold-sweep.js` sweeps thresholds from 0.70 to 0.90 in 0.005 increments without changing configuration.
+- Evaluation reports are written to `server/eval/runs/<label>.md` and `.json`; aggregate results are appended to `server/eval/results.csv`. Repo snapshots and embeddings are cached in `server/eval/.cache/` (gitignored).
+- `retrieve.js` exports `retrieveByVector` (merge on or off); production `retrieve()` retains its existing behaviour. `embeddings.js` exports `QUERY_PREFIX`.
+- Evaluation dataset: 38 questions across two repositories — 30 on-topic (8 exact-identifier, 10 conceptual, 6 multi-file, 6 overview) and 8 off-topic.
+- Original 38-question baseline (873 chunks): Hit@1 36.7%, Hit@3 73.3%, Hit@5 80.0%, MRR 0.547.
+- B2 (`no-tests`, evaluation-only; 560 chunks): Hit@1 46.7%, Hit@3 86.7%, Hit@5 86.7%, MRR 0.650. Both exact-identifier failures were resolved in this run.
+- Four additional B2 experiments completed:
+  - `b2-qprefix`: Hit@5 83.3%, MRR 0.604.
+  - `b2-nomerge`: Hit@5 86.7%, MRR 0.639.
+  - `b2-max1000`: Hit@5 83.3%, MRR 0.607.
+  - `b2-w30o5`: Hit@5 83.3%, MRR 0.575.
+- Best-performing evaluation settings were window 50, overlap 10, max-chars 1500, path prefix on, query prefix off, and merge on. Test exclusion remains an evaluation-only setting; production adoption has not been decided.
+- `SEARCH_MIN_SCORE` default is currently 0.79 (provisional, D-084). At 0.790, 30/30 on-topic questions pass, 4/8 off-topic questions are rejected, and 6/6 overview questions pass. Final calibration is pending after the production configuration is selected.
+- Latest server test run: 538/538 tests passed across 23 files.
+- `DECISIONS.md` contains D-001 to D-086.
 
 ## What is broken or unverified
 
-- Retrieval-parameter experiments still pending: `qprefix-on`, `merge-off`, `prefix-off`, `w30`, `c3000`, and `o0`. Their results remain `TBD` in `server/eval/FINDINGS.md`.
-- Four on-topic retrieval failures remain after excluding tests: `im-concept-03`, `im-multi-01`, `im-overview-01`, and `im-overview-02`.
-- Threshold selection is provisional. The evaluation dataset contains only 30 on-topic and 8 off-topic questions across two repositories. One on-topic question changes Hit@5 by 3.3 percentage points; one off-topic question changes the rejection rate by 12.5 points.
-- `results.csv` intentionally retains its existing schema without an overview or exclude-tests column. Run labels distinguish experiments; per-question and group details are in the JSON and Markdown reports.
-- Window and max-chars interact (D-079). The 512-token check is a chars/4 estimate. Running two evaluation jobs concurrently could cause them to delete each other's temporary chunks (D-081).
-- Phase 9A and 9B manual checks, Groq streaming assumptions, SSE proxy buffering on Render, and shutdown waiting on open SSE connections remain as previously documented; this status update does not re-verify them.
-- No rate limiting until Phase 12, so do not share the link widely. Follow-up questions retrieve using the raw question (Phase 11).
+- Production adoption of test-file exclusion is undecided (D-086). The evaluation set does not yet include test-focused questions, so the cost to questions such as “how is X tested?” has not been measured.
+- Four on-topic retrieval failures remain in B2: `im-concept-03`, `im-multi-01`, `im-overview-01`, and `im-overview-02`.
+- The evaluation dataset is small (30 on-topic and 8 off-topic questions) and covers only two repositories. Results are indicative, not proof; one on-topic question changes Hit@5 by 3.3 percentage points.
+- `SEARCH_MIN_SCORE = 0.79` is provisional and must be recalibrated with the threshold sweep after the final production configuration is chosen.
+- File-level retrieval metrics do not establish whether the right lines were retrieved or whether generated answers are correct.
+- The 512-token check is a chars/4 estimate; the embedding model may silently truncate beyond its token limit.
+- Window and max-chars interact (D-079). Two evaluation runs at the same time could delete each other's temporary chunks (D-081).
+- 9A and 9B manual checks, Groq streaming assumptions, SSE proxy buffering on Render, and shutdown waiting on open SSE connections remain as documented previously.
+- A `[1]` inside an unclosed code fence can briefly render as a chip mid-stream (D-069).
+- Client does not read `Retry-After` (D-055, D-059). Active repos show a Delete button that ends in 409 (D-056). A network failure during the first `/api/me` request looks like signed out (D-051).
+- No rate limiting until Phase 12, so do not share the link widely. Follow-ups retrieve on the raw question (Phase 11).
+- Still unmeasured: embedding batch limit, Cloudflare reset time, vector index storage, and GitHub download accounting.
 
-## Files added or changed (Phase 10B)
+## Files added or changed (Phase 10)
 
-- Added: `server/eval/threshold-sweep.js`, `server/eval/FINDINGS.md`.
-- Added/updated evaluation data and outputs: `server/eval/questions.json` (six overview questions added), `server/eval/questions.example.json`, `server/eval/runs/baseline.md`, `server/eval/runs/baseline.json`, `server/eval/runs/no-tests.md`, `server/eval/runs/no-tests.json`, and `server/eval/results.csv`.
-- Changed: `server/eval/lib.js`, `server/scripts/eval.js`, `server/src/config.js`, `server/src/services/answer.js` (comment), `.env.example`, `server/test/evalLib.test.js`, `DECISIONS.md` (D-082 through D-086), and `STATUS.md`.
+- Added: `server/scripts/eval.js`, `server/eval/lib.js`, `server/eval/compare.js`, `server/eval/threshold-sweep.js`, `server/eval/questions.example.json`, `server/eval/questions.json`, `server/eval/FINDINGS.md`, `server/test/evalLib.test.js`, and per-run reports under `server/eval/runs/`.
+- Changed: `server/src/services/retrieve.js` (`retrieveByVector`), `server/src/services/embeddings.js` (export `QUERY_PREFIX`), `server/src/config.js` (provisional `SEARCH_MIN_SCORE` default), `server/src/services/answer.js` (threshold rationale comment), `server/scripts/eval.js`, `server/test/retrieve.test.js`, `server/test/evalLib.test.js`, `.gitignore` (ignore `server/eval/.cache/`), `.env.example`, `DECISIONS.md` (D-077 to D-086), `server/eval/results.csv`, and `STATUS.md`.
 
 ## Next
 
-Run the remaining retrieval-parameter experiments (`qprefix-on`, `merge-off`, `prefix-off`, `w30`, `c3000`, and `o0`). Fill the corresponding `TBD` cells in `server/eval/FINDINGS.md`, compare each result against the current 38-question baseline, and decide whether any chunking or retrieval defaults should change. Keep test exclusion evaluation-only unless further evidence supports a production change. Then proceed to Phase 10C (README results table and Explain-back).
+Finalize whether production ingestion should exclude test files, taking account of the missing test-focused evaluation questions. Confirm the production retrieval/chunking settings, recalibrate `SEARCH_MIN_SCORE` using the threshold sweep on the final configuration, and keep `FINDINGS.md` and this status file synchronized. Then complete Phase 10C: add the README retrieval-results table and implement Explain-back. Phase 11 (hybrid search) follows.
