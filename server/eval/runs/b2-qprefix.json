@@ -1,0 +1,1249 @@
+{
+  "label": "b2-qprefix",
+  "date": "2026-11-06T21:28:33.481Z",
+  "settings": {
+    "window": 50,
+    "overlap": 10,
+    "maxChars": 1500,
+    "prefix": true,
+    "queryPrefix": true,
+    "merge": true,
+    "excludeTests": true
+  },
+  "results": [
+    {
+      "id": "ar-exact-01",
+      "kind": "exact-identifier",
+      "topScore": 0.826076090335846,
+      "top": [
+        {
+          "path": "server/src/middleware/auth.js",
+          "lines": "1-54",
+          "score": 0.826076090335846
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "130-151",
+          "score": 0.8174710273742676
+        },
+        {
+          "path": "server/src/routes/auth.js",
+          "lines": "1-81",
+          "score": 0.8160611391067505
+        },
+        {
+          "path": "DECISIONS.md",
+          "lines": "383-399",
+          "score": 0.8104107975959778
+        },
+        {
+          "path": "client/src/auth.jsx",
+          "lines": "1-48",
+          "score": 0.8084759712219238
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "ar-exact-02",
+      "kind": "exact-identifier",
+      "topScore": 0.8346383571624756,
+      "top": [
+        {
+          "path": "server/src/routes/repos.js",
+          "lines": "152-267",
+          "score": 0.8346383571624756
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "152-167",
+          "score": 0.8315114974975586
+        },
+        {
+          "path": "server/src/services/github.js",
+          "lines": "41-70",
+          "score": 0.8291215896606445
+        },
+        {
+          "path": "server/scripts/chunk-repo.js",
+          "lines": "1-40",
+          "score": 0.8199710845947266
+        },
+        {
+          "path": "DECISIONS.md",
+          "lines": "77-92",
+          "score": 0.8181389570236206
+        }
+      ],
+      "rank": 3
+    },
+    {
+      "id": "ar-exact-03",
+      "kind": "exact-identifier",
+      "topScore": 0.8586573600769043,
+      "top": [
+        {
+          "path": "PROJECT.md",
+          "lines": "154-173",
+          "score": 0.8586573600769043
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "61-81",
+          "score": 0.8580363988876343
+        },
+        {
+          "path": "server/src/services/chunker.js",
+          "lines": "1-76",
+          "score": 0.8545291423797607
+        },
+        {
+          "path": "server/scripts/chunk-repo.js",
+          "lines": "1-40",
+          "score": 0.8511288166046143
+        },
+        {
+          "path": "server/src/services/ingest.js",
+          "lines": "182-230",
+          "score": 0.848025918006897
+        }
+      ],
+      "rank": 3
+    },
+    {
+      "id": "ar-exact-04",
+      "kind": "exact-identifier",
+      "topScore": 0.8666218519210815,
+      "top": [
+        {
+          "path": "server/scripts/vector-test.js",
+          "lines": "29-102",
+          "score": 0.8666218519210815
+        },
+        {
+          "path": "server/src/services/retrieve.js",
+          "lines": "1-45",
+          "score": 0.858938455581665
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "47-49",
+          "score": 0.8513235449790955
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "72-95",
+          "score": 0.8474910259246826
+        },
+        {
+          "path": "DECISIONS.md",
+          "lines": "189-201",
+          "score": 0.8450031280517578
+        }
+      ],
+      "rank": 2
+    },
+    {
+      "id": "ar-concept-01",
+      "kind": "conceptual",
+      "topScore": 0.8111364245414734,
+      "top": [
+        {
+          "path": "DECISIONS.md",
+          "lines": "383-399",
+          "score": 0.8111364245414734
+        },
+        {
+          "path": "client/src/auth.jsx",
+          "lines": "1-59",
+          "score": 0.8080942630767822
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "130-151",
+          "score": 0.8014771938323975
+        },
+        {
+          "path": "client/src/pages/LoginPage.jsx",
+          "lines": "33-82",
+          "score": 0.7957674264907837
+        },
+        {
+          "path": "server/src/middleware/auth.js",
+          "lines": "1-54",
+          "score": 0.795756459236145
+        }
+      ],
+      "rank": 5
+    },
+    {
+      "id": "ar-concept-02",
+      "kind": "conceptual",
+      "topScore": 0.8418728709220886,
+      "top": [
+        {
+          "path": "server/src/services/github.js",
+          "lines": "256-324",
+          "score": 0.8418728709220886
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "152-163",
+          "score": 0.8313891291618347
+        },
+        {
+          "path": "client/src/pages/ReposPage.jsx",
+          "lines": "279-326",
+          "score": 0.8284820318222046
+        },
+        {
+          "path": "DECISIONS.md",
+          "lines": "83-97",
+          "score": 0.8282795548439026
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "383-405",
+          "score": 0.8280025720596313
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "ar-concept-03",
+      "kind": "conceptual",
+      "topScore": 0.8818588256835938,
+      "top": [
+        {
+          "path": "server/src/services/chunker.js",
+          "lines": "31-102",
+          "score": 0.8818588256835938
+        },
+        {
+          "path": "DECISIONS.md",
+          "lines": "118-148",
+          "score": 0.8759268522262573
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "154-173",
+          "score": 0.8643909692764282
+        },
+        {
+          "path": "server/src/services/retrieve.js",
+          "lines": "61-96",
+          "score": 0.8594970107078552
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "ar-concept-04",
+      "kind": "conceptual",
+      "topScore": 0.8782573938369751,
+      "top": [
+        {
+          "path": "PROJECT.md",
+          "lines": "200-219",
+          "score": 0.8782573938369751
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "354-405",
+          "score": 0.8707885146141052
+        },
+        {
+          "path": "server/src/services/retrieve.js",
+          "lines": "1-45",
+          "score": 0.8681538105010986
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "272-285",
+          "score": 0.8575446605682373
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "72-95",
+          "score": 0.855593204498291
+        }
+      ],
+      "rank": 3
+    },
+    {
+      "id": "ar-concept-05",
+      "kind": "conceptual",
+      "topScore": 0.8598744869232178,
+      "top": [
+        {
+          "path": "PROJECT.md",
+          "lines": "208-223",
+          "score": 0.8598744869232178
+        },
+        {
+          "path": "DECISIONS.md",
+          "lines": "310-330",
+          "score": 0.8474471569061279
+        },
+        {
+          "path": "server/src/services/prompt.js",
+          "lines": "1-37",
+          "score": 0.8458853960037231
+        },
+        {
+          "path": "server/src/services/answer.js",
+          "lines": "32-81",
+          "score": 0.819413423538208
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "383-405",
+          "score": 0.8187857270240784
+        }
+      ],
+      "rank": 3
+    },
+    {
+      "id": "ar-multi-01",
+      "kind": "multi-file",
+      "topScore": 0.8423051834106445,
+      "top": [
+        {
+          "path": "server/src/services/ingest.js",
+          "lines": "1-46",
+          "score": 0.8423051834106445
+        },
+        {
+          "path": "server/src/services/ingest.js",
+          "lines": "182-230",
+          "score": 0.840027928352356
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "181-199",
+          "score": 0.8371227979660034
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "61-81",
+          "score": 0.8302425146102905
+        },
+        {
+          "path": "server/src/services/ingest.js",
+          "lines": "69-113",
+          "score": 0.8271136283874512
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "ar-multi-02",
+      "kind": "multi-file",
+      "topScore": 0.8386421203613281,
+      "top": [
+        {
+          "path": "PROJECT.md",
+          "lines": "238-261",
+          "score": 0.8386421203613281
+        },
+        {
+          "path": "server/scripts/groq-stream-probe.js",
+          "lines": "1-39",
+          "score": 0.8379586935043335
+        },
+        {
+          "path": "STATUS.md",
+          "lines": "1-30",
+          "score": 0.8373924493789673
+        },
+        {
+          "path": "client/src/pages/ChatPage.jsx",
+          "lines": "81-128",
+          "score": 0.8326270580291748
+        },
+        {
+          "path": "client/src/pages/ChatPage.jsx",
+          "lines": "387-436",
+          "score": 0.8322605490684509
+        }
+      ],
+      "rank": 4
+    },
+    {
+      "id": "ar-multi-03",
+      "kind": "multi-file",
+      "topScore": 0.8339830040931702,
+      "top": [
+        {
+          "path": "DECISIONS.md",
+          "lines": "429-445",
+          "score": 0.8339830040931702
+        },
+        {
+          "path": "client/src/chatHelpers.js",
+          "lines": "1-34",
+          "score": 0.8122984170913696
+        },
+        {
+          "path": "client/src/pages/ChatPage.jsx",
+          "lines": "1-90",
+          "score": 0.8119900226593018
+        },
+        {
+          "path": "DECISIONS.md",
+          "lines": "328-343",
+          "score": 0.8111417889595032
+        },
+        {
+          "path": "client/src/pages/ChatPage.jsx",
+          "lines": "387-436",
+          "score": 0.8056923151016235
+        }
+      ],
+      "rank": 2
+    },
+    {
+      "id": "ar-off-01",
+      "kind": "off-topic",
+      "topScore": 0.7669845223426819,
+      "top": [
+        {
+          "path": "PROJECT.md",
+          "lines": "342-363",
+          "score": 0.7669845223426819
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "238-261",
+          "score": 0.7579696178436279
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "106-119",
+          "score": 0.7552183270454407
+        },
+        {
+          "path": "client/src/pages/ChatPage.jsx",
+          "lines": "387-436",
+          "score": 0.754670262336731
+        },
+        {
+          "path": "DECISIONS.md",
+          "lines": "458-469",
+          "score": 0.7536145448684692
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "ar-off-02",
+      "kind": "off-topic",
+      "topScore": 0.7830264568328857,
+      "top": [
+        {
+          "path": "DECISIONS.md",
+          "lines": "31-50",
+          "score": 0.7830264568328857
+        },
+        {
+          "path": "server/src/routes/auth.js",
+          "lines": "1-81",
+          "score": 0.7711993455886841
+        },
+        {
+          "path": "DECISIONS.md",
+          "lines": "352-365",
+          "score": 0.7603491544723511
+        },
+        {
+          "path": "server/src/services/llm.js",
+          "lines": "28-75",
+          "score": 0.7592640519142151
+        },
+        {
+          "path": "client/src/pages/LoginPage.jsx",
+          "lines": "73-110",
+          "score": 0.7588966488838196
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "ar-off-03",
+      "kind": "off-topic",
+      "topScore": 0.8385168313980103,
+      "top": [
+        {
+          "path": "DECISIONS.md",
+          "lines": "197-219",
+          "score": 0.8385168313980103
+        },
+        {
+          "path": "DECISIONS.md",
+          "lines": "247-272",
+          "score": 0.825918436050415
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "184-197",
+          "score": 0.8244239091873169
+        },
+        {
+          "path": "server/src/routes/repos.js",
+          "lines": "258-304",
+          "score": 0.8214287757873535
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "ar-off-04",
+      "kind": "off-topic",
+      "topScore": 0.7632830739021301,
+      "top": [
+        {
+          "path": "PROJECT.md",
+          "lines": "181-197",
+          "score": 0.7632830739021301
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "286-307",
+          "score": 0.7632647752761841
+        },
+        {
+          "path": "server/src/services/ingest.js",
+          "lines": "69-153",
+          "score": 0.7592942714691162
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "309-319",
+          "score": 0.7567324638366699
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "im-exact-01",
+      "kind": "exact-identifier",
+      "topScore": 0.8295860290527344,
+      "top": [
+        {
+          "path": "backend/src/routes/auth.route.js",
+          "lines": "1-9",
+          "score": 0.8295860290527344
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "441-475",
+          "score": 0.8065518736839294
+        },
+        {
+          "path": "backend/src/middleware/auth.middleware.js",
+          "lines": "1-27",
+          "score": 0.8056825399398804
+        },
+        {
+          "path": "backend/src/routes/conversation.route.js",
+          "lines": "41-88",
+          "score": 0.8054949045181274
+        },
+        {
+          "path": "backend/src/index.js",
+          "lines": "33-110",
+          "score": 0.8039910793304443
+        }
+      ],
+      "rank": 3
+    },
+    {
+      "id": "im-exact-02",
+      "kind": "exact-identifier",
+      "topScore": 0.8023254871368408,
+      "top": [
+        {
+          "path": "backend/src/lib/ai/assistant.js",
+          "lines": "1-103",
+          "score": 0.8023254871368408
+        },
+        {
+          "path": "backend/src/lib/ai/mention.js",
+          "lines": "1-12",
+          "score": 0.794745147228241
+        },
+        {
+          "path": "backend/src/lib/ai/context.js",
+          "lines": "136-181",
+          "score": 0.7852915525436401
+        },
+        {
+          "path": "frontend/src/lib/assistant.js",
+          "lines": "1-27",
+          "score": 0.7827013731002808
+        },
+        {
+          "path": "backend/src/lib/ai/mode.js",
+          "lines": "1-28",
+          "score": 0.7786941528320312
+        }
+      ],
+      "rank": 2
+    },
+    {
+      "id": "im-exact-03",
+      "kind": "exact-identifier",
+      "topScore": 0.8282363414764404,
+      "top": [
+        {
+          "path": "backend/src/lib/read-receipts.js",
+          "lines": "1-60",
+          "score": 0.8282363414764404
+        },
+        {
+          "path": "frontend/src/hooks/useMarkConversationRead.js",
+          "lines": "56-72",
+          "score": 0.8271727561950684
+        },
+        {
+          "path": "backend/src/lib/unread.js",
+          "lines": "28-68",
+          "score": 0.8230808973312378
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "358-399",
+          "score": 0.8211816549301147
+        },
+        {
+          "path": "frontend/src/hooks/useLoadOlderMessages.js",
+          "lines": "69-106",
+          "score": 0.8202484250068665
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "im-exact-04",
+      "kind": "exact-identifier",
+      "topScore": 0.8333423137664795,
+      "top": [
+        {
+          "path": "backend/src/lib/message-history.js",
+          "lines": "1-37",
+          "score": 0.8333423137664795
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "573-611",
+          "score": 0.8328860998153687
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "466-501",
+          "score": 0.8285707235336304
+        },
+        {
+          "path": "frontend/src/hooks/useLoadOlderMessages.js",
+          "lines": "1-53",
+          "score": 0.8284526467323303
+        },
+        {
+          "path": "frontend/src/pages/ChatPage.jsx",
+          "lines": "29-73",
+          "score": 0.8224175572395325
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "im-concept-01",
+      "kind": "conceptual",
+      "topScore": 0.837693452835083,
+      "top": [
+        {
+          "path": "backend/src/lib/ai/assistant-user.js",
+          "lines": "1-40",
+          "score": 0.837693452835083
+        },
+        {
+          "path": "backend/src/webhooks/clerk.webhook.js",
+          "lines": "1-58",
+          "score": 0.81533282995224
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "390-475",
+          "score": 0.7906169891357422
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "90-131",
+          "score": 0.7892786860466003
+        },
+        {
+          "path": "backend/src/lib/read-receipts.js",
+          "lines": "34-60",
+          "score": 0.7849470973014832
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "im-concept-02",
+      "kind": "conceptual",
+      "topScore": 0.8367979526519775,
+      "top": [
+        {
+          "path": "backend/src/lib/socket.js",
+          "lines": "96-220",
+          "score": 0.8367979526519775
+        },
+        {
+          "path": "backend/src/lib/socket.js",
+          "lines": "1-105",
+          "score": 0.8193795084953308
+        },
+        {
+          "path": "frontend/src/store/useAuthStore.js",
+          "lines": "1-50",
+          "score": 0.8038065433502197
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "421-450",
+          "score": 0.7917356491088867
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "im-concept-03",
+      "kind": "conceptual",
+      "topScore": 0.8213756084442139,
+      "top": [
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "819-862",
+          "score": 0.8213756084442139
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "519-550",
+          "score": 0.8114016056060791
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "701-740",
+          "score": 0.8071244359016418
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "90-131",
+          "score": 0.8052804470062256
+        },
+        {
+          "path": "backend/src/controllers/message.controller.js",
+          "lines": "35-80",
+          "score": 0.8052366971969604
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "im-concept-04",
+      "kind": "conceptual",
+      "topScore": 0.7864193916320801,
+      "top": [
+        {
+          "path": "backend/src/controllers/conversation.controller.js",
+          "lines": "115-226",
+          "score": 0.7864193916320801
+        },
+        {
+          "path": "frontend/src/components/chat/GroupMembersModal.jsx",
+          "lines": "124-183",
+          "score": 0.7850760817527771
+        },
+        {
+          "path": "frontend/src/components/chat/CreateGroupModal.jsx",
+          "lines": "77-108",
+          "score": 0.7711785435676575
+        },
+        {
+          "path": "frontend/src/components/chat/GroupMembersModal.jsx",
+          "lines": "32-78",
+          "score": 0.7686984539031982
+        },
+        {
+          "path": "backend/src/lib/ai/rate-limit.js",
+          "lines": "1-28",
+          "score": 0.764611542224884
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "im-concept-05",
+      "kind": "conceptual",
+      "topScore": 0.8713451027870178,
+      "top": [
+        {
+          "path": "backend/src/lib/read-receipts.js",
+          "lines": "1-60",
+          "score": 0.8713451027870178
+        },
+        {
+          "path": "backend/src/models/conversation-read-state.model.js",
+          "lines": "1-40",
+          "score": 0.8359339237213135
+        },
+        {
+          "path": "backend/src/lib/unread.js",
+          "lines": "1-68",
+          "score": 0.8289742469787598
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "441-475",
+          "score": 0.8149814605712891
+        },
+        {
+          "path": "frontend/src/lib/notifications.js",
+          "lines": "1-38",
+          "score": 0.8134721517562866
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "im-multi-01",
+      "kind": "multi-file",
+      "topScore": 0.7996981739997864,
+      "top": [
+        {
+          "path": "backend/src/controllers/conversation.controller.js",
+          "lines": "217-265",
+          "score": 0.7996981739997864
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "56-131",
+          "score": 0.7969990372657776
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "421-475",
+          "score": 0.7929415106773376
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "701-740",
+          "score": 0.7881174087524414
+        },
+        {
+          "path": "frontend/src/pages/ChatPage.jsx",
+          "lines": "29-73",
+          "score": 0.7822164297103882
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "im-multi-02",
+      "kind": "multi-file",
+      "topScore": 0.8255176544189453,
+      "top": [
+        {
+          "path": "backend/src/lib/conversations.js",
+          "lines": "41-84",
+          "score": 0.8255176544189453
+        },
+        {
+          "path": "backend/src/controllers/conversation.controller.js",
+          "lines": "115-226",
+          "score": 0.8095043897628784
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "790-862",
+          "score": 0.8023040294647217
+        },
+        {
+          "path": "backend/src/lib/ai/assistant.js",
+          "lines": "57-103",
+          "score": 0.7869950532913208
+        },
+        {
+          "path": "backend/src/controllers/message.controller.js",
+          "lines": "35-80",
+          "score": 0.7856820821762085
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "im-multi-03",
+      "kind": "multi-file",
+      "topScore": 0.7949023842811584,
+      "top": [
+        {
+          "path": "backend/src/lib/ai/context.js",
+          "lines": "136-181",
+          "score": 0.7949023842811584
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "674-710",
+          "score": 0.7933911681175232
+        },
+        {
+          "path": "backend/src/lib/ai/context.js",
+          "lines": "18-41",
+          "score": 0.7918453812599182
+        },
+        {
+          "path": "backend/src/lib/ai/assistant.js",
+          "lines": "19-103",
+          "score": 0.7908869981765747
+        },
+        {
+          "path": "backend/src/lib/read-receipts.js",
+          "lines": "34-60",
+          "score": 0.7867156267166138
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "im-off-01",
+      "kind": "off-topic",
+      "topScore": 0.7522897720336914,
+      "top": [
+        {
+          "path": "backend/src/lib/read-receipts.js",
+          "lines": "1-60",
+          "score": 0.7522897720336914
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "819-895",
+          "score": 0.7383056879043579
+        },
+        {
+          "path": "frontend/src/hooks/useSelectedConversation.js",
+          "lines": "41-127",
+          "score": 0.7368583083152771
+        },
+        {
+          "path": "backend/src/lib/ai/assistant-user.js",
+          "lines": "1-40",
+          "score": 0.7333592176437378
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "640-683",
+          "score": 0.731462299823761
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "im-off-02",
+      "kind": "off-topic",
+      "topScore": 0.8053817749023438,
+      "top": [
+        {
+          "path": "frontend/src/components/chat/MessageVideo.jsx",
+          "lines": "1-65",
+          "score": 0.8053817749023438
+        },
+        {
+          "path": "backend/src/middleware/upload.middleware.js",
+          "lines": "1-21",
+          "score": 0.7952897548675537
+        },
+        {
+          "path": "backend/src/middleware/file-type.middleware.js",
+          "lines": "1-27",
+          "score": 0.7945370674133301
+        },
+        {
+          "path": "backend/src/controllers/conversation.controller.js",
+          "lines": "217-265",
+          "score": 0.7913984656333923
+        },
+        {
+          "path": "backend/src/models/message.model.js",
+          "lines": "41-77",
+          "score": 0.7858596444129944
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "im-off-03",
+      "kind": "off-topic",
+      "topScore": 0.7657676935195923,
+      "top": [
+        {
+          "path": "frontend/src/hooks/useSelectedConversation.js",
+          "lines": "41-127",
+          "score": 0.7657676935195923
+        },
+        {
+          "path": "backend/src/lib/read-receipts.js",
+          "lines": "34-60",
+          "score": 0.7476357817649841
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "640-710",
+          "score": 0.7451494336128235
+        },
+        {
+          "path": "backend/src/seeds/message.seed.js",
+          "lines": "1-50",
+          "score": 0.742398738861084
+        },
+        {
+          "path": "backend/src/lib/ai/assistant-user.js",
+          "lines": "1-40",
+          "score": 0.7394992113113403
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "im-off-04",
+      "kind": "off-topic",
+      "topScore": 0.7446893453598022,
+      "top": [
+        {
+          "path": "backend/src/lib/ai/rate-limit.js",
+          "lines": "1-28",
+          "score": 0.7446893453598022
+        },
+        {
+          "path": "backend/src/controllers/message.controller.js",
+          "lines": "35-80",
+          "score": 0.7423093914985657
+        },
+        {
+          "path": "backend/src/migrations/002-read-state-baseline.js",
+          "lines": "31-99",
+          "score": 0.7403221130371094
+        },
+        {
+          "path": "frontend/src/hooks/useSelectedConversation.js",
+          "lines": "41-89",
+          "score": 0.7328448295593262
+        },
+        {
+          "path": "backend/src/lib/ai/assistant-user.js",
+          "lines": "1-40",
+          "score": 0.7318061590194702
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "ar-overview-01",
+      "kind": "overview",
+      "topScore": 0.8252125978469849,
+      "top": [
+        {
+          "path": "PROJECT.md",
+          "lines": "26-42",
+          "score": 0.8252125978469849
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "208-223",
+          "score": 0.8235229253768921
+        },
+        {
+          "path": "client/src/pages/LoginPage.jsx",
+          "lines": "73-110",
+          "score": 0.8171807527542114
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "383-405",
+          "score": 0.8122755289077759
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "329-339",
+          "score": 0.8111810684204102
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "ar-overview-02",
+      "kind": "overview",
+      "topScore": 0.804814875125885,
+      "top": [
+        {
+          "path": "PROJECT.md",
+          "lines": "329-339",
+          "score": 0.804814875125885
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "26-42",
+          "score": 0.8022613525390625
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "86-115",
+          "score": 0.8010705709457397
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "181-197",
+          "score": 0.7967909574508667
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "210-223",
+          "score": 0.7934993505477905
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "ar-overview-03",
+      "kind": "overview",
+      "topScore": 0.8546256422996521,
+      "top": [
+        {
+          "path": "PROJECT.md",
+          "lines": "329-339",
+          "score": 0.8546256422996521
+        },
+        {
+          "path": "STATUS.md",
+          "lines": "8-19",
+          "score": 0.8519047498703003
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "86-115",
+          "score": 0.8501801490783691
+        },
+        {
+          "path": "server/src/index.js",
+          "lines": "34-80",
+          "score": 0.8495560884475708
+        },
+        {
+          "path": "PROJECT.md",
+          "lines": "228-247",
+          "score": 0.839364767074585
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "id": "im-overview-01",
+      "kind": "overview",
+      "topScore": 0.7785834074020386,
+      "top": [
+        {
+          "path": "frontend/src/hooks/useSelectedConversation.js",
+          "lines": "41-127",
+          "score": 0.7785834074020386
+        },
+        {
+          "path": "frontend/src/components/chat/MessageList.jsx",
+          "lines": "31-82",
+          "score": 0.7779413461685181
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "731-770",
+          "score": 0.7756161689758301
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "358-399",
+          "score": 0.7714617252349854
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "640-710",
+          "score": 0.7713370323181152
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "im-overview-02",
+      "kind": "overview",
+      "topScore": 0.7886469960212708,
+      "top": [
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "358-399",
+          "score": 0.7886469960212708
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "731-770",
+          "score": 0.7858725786209106
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "56-99",
+          "score": 0.7843048572540283
+        },
+        {
+          "path": "frontend/src/lib/notifications.js",
+          "lines": "1-38",
+          "score": 0.7794936895370483
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "886-923",
+          "score": 0.7789749503135681
+        }
+      ],
+      "rank": null
+    },
+    {
+      "id": "im-overview-03",
+      "kind": "overview",
+      "topScore": 0.8204135298728943,
+      "top": [
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "731-799",
+          "score": 0.8204135298728943
+        },
+        {
+          "path": "backend/src/lib/socket.js",
+          "lines": "96-220",
+          "score": 0.81971275806427
+        },
+        {
+          "path": "backend/src/lib/socket.js",
+          "lines": "1-37",
+          "score": 0.8162096738815308
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "56-99",
+          "score": 0.8112595081329346
+        },
+        {
+          "path": "frontend/src/store/useChatStore.js",
+          "lines": "421-450",
+          "score": 0.8094950914382935
+        }
+      ],
+      "rank": 2
+    }
+  ]
+}
