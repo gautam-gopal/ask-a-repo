@@ -108,9 +108,21 @@ export function mergeAdjacentHits(
   return out.slice(0, limit);
 }
 
-export async function retrieve({ repoId, query, limit = DEFAULT_LIMIT }) {
+export async function retrieveByVector({
+  repoId,
+  queryVector,
+  limit = DEFAULT_LIMIT,
+  merge = true,
+}) {
   const repoOid = new mongoose.Types.ObjectId(String(repoId));
-  const queryVector = await embedQuery(query);
   const hits = await Chunk.aggregate(buildPipeline(repoOid, queryVector));
-  return mergeAdjacentHits(hits, { limit });
+  // merge off: the raw nearest chunks, already sorted by score (used by the eval only).
+  return merge
+    ? mergeAdjacentHits(hits, { limit })
+    : hits.slice(0, limit).map((h) => ({ ...h, mergedFrom: 1 }));
+}
+
+export async function retrieve({ repoId, query, limit = DEFAULT_LIMIT }) {
+  const queryVector = await embedQuery(query);
+  return retrieveByVector({ repoId, queryVector, limit });
 }

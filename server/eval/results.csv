@@ -1,0 +1,2 @@
+label,date,window,overlap,max_chars,prefix,query_prefix,merge,questions,chunks,avg_chars,max_chunk_chars,over512_frac,hit1,hit3,hit5,mrr,avg_rank,hit5_exact,hit5_conceptual,hit5_multi,off_top_median,off_top_max,on_top_min,on_top_median,neurons_used,cache_hits,cache_misses
+baseline,2026-11-06T09:33:38.288Z,50,10,1500,on,off,on,32,873,1294.6,1500,0,0.3333,0.75,0.8333,0.5444,2,0.75,0.9,0.8333,0.7904,0.8445,0.82,0.8619,1766.3,0,905

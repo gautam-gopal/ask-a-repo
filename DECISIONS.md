@@ -548,3 +548,36 @@
 
 - Decision: toStreamError logs one console.warn line with error class and code for provider errors (plus "output limit" for truncation). Unknown errors keep the existing console.error with stack.
 - Why: ad-hoc logging of err.message and cause can leak connection strings. Class and code are fixed strings and were enough to diagnose A.
+
+## D-077: Retrieval-only evaluation
+
+- Context: Phase 10 must pick chunking defaults and calibrate the threshold without wasting free quota.
+- Decision: the eval embeds the questions, runs the real $vectorSearch with the real pre-filter, and scores the results. No LLM, no routes, no UI.
+- Why: free to repeat, deterministic, and it isolates the part we control. Grading free-form LLM text would add noise and spend Groq quota.
+- Trade-off: it says nothing about answer quality. A good retrieval can still give a bad answer.
+- What would change this: a need to compare prompts or models.
+
+## D-078: File-level hit as the metric
+
+- Decision: a question is a hit at k when any expected FILE is among the top k results. Also reported: hit@1, hit@3, MRR over the top 5 and the average rank of the first hit, per question kind.
+- Why not line level: chunk boundaries move with window, overlap and max-chars, so line labels written for one setting are wrong for the next and runs would not be comparable. Labelling ranges is also slow. The prompt gets whole excerpts, so the right file neighbourhood is what matters.
+- Limits: it does not penalise a huge chunk that is imprecise; multi-file questions score a hit on any one file; with merge off, several top slots can be the same file.
+- Sample size: about 32 questions, so results are indicative, not proof.
+
+## D-079: One variable at a time against a baseline
+
+- Decision: every run changes exactly one setting from the current defaults (50 / 10 / 1500 / path prefix on / query prefix off / merge on). Runs are labelled and compared with eval/compare.js.
+- Why: with a small question set, changing two things at once cannot be attributed.
+- Known interaction: the 1500-character cap often shortens the 50-line window, so window and max-chars are not independent. A combined run is justified only after both single runs move.
+
+## D-080: Disk cache for embeddings and repo snapshots
+
+- Decision: server/eval/.cache (gitignored). Vectors are keyed by sha256 of [model, dimensions, exact text sent], written atomically after every 64 texts. Repo snapshots are keyed by owner, repo and commit SHA, and questions.json may pin a sha.
+- Why: embedding is the only scarce resource. Runs that change merge or query prefix, or re-run after a crash, spend nothing on text already embedded. A pinned snapshot keeps the corpus identical between runs.
+- Trade-off: the cache grows (about 15 KB per text), and a changed model or dimension silently becomes a new key. Delete the folder to reset.
+
+## D-081: Throwaway data, always cleaned up
+
+- Decision: eval chunks use a fixed eval userId and a fresh repoId per eval repo, with expiresAt one day ahead. The run deletes by that userId before starting (crash leftovers) and in finally. No Repo documents exist, so the app cannot reach them.
+- Why: the eval must never read or write real user data, and the TTL is the backstop if cleanup fails.
+- Limit: two eval runs at the same time would delete each other's chunks.

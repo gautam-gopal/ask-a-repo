@@ -23,7 +23,7 @@ export const TRUNCATION_RISK_CHARS = 1536;
 
 const NEURONS_PER_MILLION_TOKENS = 6058; // bge-base, from Cloudflare pricing (verify)
 const CHARS_PER_TOKEN = 4; // rough estimate; code usually tokenizes denser, so this undercounts
-const QUERY_PREFIX =
+export const QUERY_PREFIX =
   "Represent this sentence for searching relevant passages: ";
 
 // Codes: AUTH_FAILED, RATE_LIMITED, QUOTA_EXHAUSTED, BAD_RESPONSE,

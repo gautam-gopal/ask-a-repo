@@ -12,6 +12,7 @@ import { embedQuery } from "../src/services/embeddings.js";
 import {
   mergeAdjacentHits,
   retrieve,
+  retrieveByVector,
   NUM_CANDIDATES,
   CANDIDATE_LIMIT,
 } from "../src/services/retrieve.js";
@@ -173,5 +174,39 @@ describe("retrieve", () => {
     );
     expect(out).toHaveLength(1);
     expect(range(out[0])).toEqual([1, 90]);
+  });
+});
+
+describe("retrieveByVector", () => {
+  const REPO_ID = "a1".repeat(12);
+  beforeEach(() => {
+    embedQuery.mockReset();
+    Chunk.aggregate.mockReset();
+    Chunk.aggregate.mockResolvedValue([
+      h("a.js", 1, 50, 0.8),
+      h("a.js", 41, 90, 0.7),
+      h("b.js", 1, 10, 0.6),
+    ]);
+  });
+
+  it("merge on merges adjacent hits and never embeds", async () => {
+    const out = await retrieveByVector({ repoId: REPO_ID, queryVector: [0.1] });
+    expect(out.map((x) => x.path)).toEqual(["a.js", "b.js"]);
+    expect(range(out[0])).toEqual([1, 90]);
+    expect(embedQuery).not.toHaveBeenCalled();
+  });
+
+  it("merge off returns raw hits in score order, cut to the limit", async () => {
+    const out = await retrieveByVector({
+      repoId: REPO_ID,
+      queryVector: [0.1],
+      merge: false,
+      limit: 2,
+    });
+    expect(out.map((x) => [x.path, ...range(x)])).toEqual([
+      ["a.js", 1, 50],
+      ["a.js", 41, 90],
+    ]);
+    expect(out.every((x) => x.mergedFrom === 1)).toBe(true);
   });
 });

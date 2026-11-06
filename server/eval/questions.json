@@ -1,0 +1,298 @@
+{
+  "repos": [
+    {
+      "id": "askarepo",
+      "url": "https://github.com/gautam-gopal/ask-a-repo",
+      "sha": "76d6d81d90e61b5985b6d114edb6dd0f968e28ec"
+    },
+    {
+      "id": "imessage",
+      "url": "https://github.com/gautam-gopal/imessage",
+      "sha": "92aea87238e93e80b2e67b8380426b262f1756fe"
+    }
+  ],
+  "questions": [
+    {
+      "id": "ar-exact-01",
+      "repoId": "askarepo",
+      "question": "Where is the requireAuth middleware implemented?",
+      "expectedPaths": ["server/src/middleware/auth.js"],
+      "kind": "exact-identifier"
+    },
+    {
+      "id": "ar-exact-02",
+      "repoId": "askarepo",
+      "question": "Where is parseRepoUrl() defined?",
+      "expectedPaths": ["server/src/services/github.js"],
+      "kind": "exact-identifier"
+    },
+    {
+      "id": "ar-exact-03",
+      "repoId": "askarepo",
+      "question": "Where is chunkFile() implemented?",
+      "expectedPaths": ["server/src/services/chunker.js"],
+      "kind": "exact-identifier"
+    },
+    {
+      "id": "ar-exact-04",
+      "repoId": "askarepo",
+      "question": "Where is buildPipeline() defined for MongoDB vector search?",
+      "expectedPaths": ["server/src/services/retrieve.js"],
+      "kind": "exact-identifier"
+    },
+    {
+      "id": "ar-concept-01",
+      "repoId": "askarepo",
+      "question": "How does signup and login establish an authenticated browser session?",
+      "expectedPaths": [
+        "server/src/routes/auth.js",
+        "server/src/middleware/auth.js"
+      ],
+      "kind": "conceptual"
+    },
+    {
+      "id": "ar-concept-02",
+      "repoId": "askarepo",
+      "question": "How does the application fetch a GitHub repository and restrict which files can be indexed?",
+      "expectedPaths": ["server/src/services/github.js"],
+      "kind": "conceptual"
+    },
+    {
+      "id": "ar-concept-03",
+      "repoId": "askarepo",
+      "question": "How are source files divided into overlapping chunks while respecting the character limit?",
+      "expectedPaths": ["server/src/services/chunker.js"],
+      "kind": "conceptual"
+    },
+    {
+      "id": "ar-concept-04",
+      "repoId": "askarepo",
+      "question": "How does retrieval restrict vector search to one repository and merge adjacent code chunks?",
+      "expectedPaths": [
+        "server/src/services/retrieve.js",
+        "server/src/models/Chunk.js"
+      ],
+      "kind": "conceptual"
+    },
+    {
+      "id": "ar-concept-05",
+      "repoId": "askarepo",
+      "question": "How does the RAG prompt include repository excerpts, manage its context budget, and extract citations from the generated answer?",
+      "expectedPaths": [
+        "server/src/services/prompt.js",
+        "server/src/services/answer.js"
+      ],
+      "kind": "conceptual"
+    },
+    {
+      "id": "ar-multi-01",
+      "repoId": "askarepo",
+      "question": "Trace repository ingestion from the add-repository request through GitHub file fetching, chunking, embedding, and storing searchable chunks.",
+      "expectedPaths": [
+        "server/src/routes/repos.js",
+        "server/src/services/ingest.js",
+        "server/src/services/github.js",
+        "server/src/services/chunker.js",
+        "server/src/services/embeddings.js",
+        "server/src/models/Chunk.js"
+      ],
+      "kind": "multi-file"
+    },
+    {
+      "id": "ar-multi-02",
+      "repoId": "askarepo",
+      "question": "Trace a user's streaming question from the React chat page through the API and server to Groq answer generation and message persistence.",
+      "expectedPaths": [
+        "client/src/pages/ChatPage.jsx",
+        "client/src/api.js",
+        "server/src/routes/repos.js",
+        "server/src/services/answer.js",
+        "server/src/services/llm.js",
+        "server/src/models/Message.js"
+      ],
+      "kind": "multi-file"
+    },
+    {
+      "id": "ar-multi-03",
+      "repoId": "askarepo",
+      "question": "How are citation numbers extracted on the server and turned into clickable source chips in the chat interface?",
+      "expectedPaths": [
+        "server/src/services/prompt.js",
+        "server/src/services/answer.js",
+        "client/src/chatHelpers.js",
+        "client/src/pages/ChatPage.jsx"
+      ],
+      "kind": "multi-file"
+    },
+    {
+      "id": "ar-off-01",
+      "repoId": "askarepo",
+      "question": "How are Stripe subscription payments, invoices, and refunds implemented?",
+      "expectedPaths": [],
+      "kind": "off-topic"
+    },
+    {
+      "id": "ar-off-02",
+      "repoId": "askarepo",
+      "question": "How does the application send password-reset emails through an SMTP provider?",
+      "expectedPaths": [],
+      "kind": "off-topic"
+    },
+    {
+      "id": "ar-off-03",
+      "repoId": "askarepo",
+      "question": "How are Redis cache entries invalidated when a repository is re-indexed?",
+      "expectedPaths": [],
+      "kind": "off-topic"
+    },
+    {
+      "id": "ar-off-04",
+      "repoId": "askarepo",
+      "question": "Which Kubernetes manifests configure horizontal pod autoscaling for the application?",
+      "expectedPaths": [],
+      "kind": "off-topic"
+    },
+    {
+      "id": "im-exact-01",
+      "repoId": "imessage",
+      "question": "Where is protectRoute() implemented?",
+      "expectedPaths": ["backend/src/middleware/auth.middleware.js"],
+      "kind": "exact-identifier"
+    },
+    {
+      "id": "im-exact-02",
+      "repoId": "imessage",
+      "question": "Where is containsAssistantMention() defined?",
+      "expectedPaths": ["backend/src/lib/ai/mention.js"],
+      "kind": "exact-identifier"
+    },
+    {
+      "id": "im-exact-03",
+      "repoId": "imessage",
+      "question": "Where is markMessagesReadUpTo() implemented?",
+      "expectedPaths": ["backend/src/lib/read-receipts.js"],
+      "kind": "exact-identifier"
+    },
+    {
+      "id": "im-exact-04",
+      "repoId": "imessage",
+      "question": "Where is getMessagePage() defined for paginated message history?",
+      "expectedPaths": ["backend/src/lib/message-history.js"],
+      "kind": "exact-identifier"
+    },
+    {
+      "id": "im-concept-01",
+      "repoId": "imessage",
+      "question": "How does an authenticated HTTP request resolve a Clerk identity to the application's local user record?",
+      "expectedPaths": ["backend/src/middleware/auth.middleware.js"],
+      "kind": "conceptual"
+    },
+    {
+      "id": "im-concept-02",
+      "repoId": "imessage",
+      "question": "How does a Socket.IO connection authenticate its handshake and associate sockets with online users?",
+      "expectedPaths": ["backend/src/lib/socket.js"],
+      "kind": "conceptual"
+    },
+    {
+      "id": "im-concept-03",
+      "repoId": "imessage",
+      "question": "How does the application ensure that the same pair of users resolves to one direct conversation?",
+      "expectedPaths": [
+        "backend/src/lib/conversations.js",
+        "backend/src/models/conversation.model.js"
+      ],
+      "kind": "conceptual"
+    },
+    {
+      "id": "im-concept-04",
+      "repoId": "imessage",
+      "question": "How are group membership changes restricted to authorised members and group administrators?",
+      "expectedPaths": [
+        "backend/src/routes/conversation.route.js",
+        "backend/src/middleware/conversation.middleware.js",
+        "backend/src/controllers/conversation.controller.js",
+        "backend/src/lib/conversations.js"
+      ],
+      "kind": "conceptual"
+    },
+    {
+      "id": "im-concept-05",
+      "repoId": "imessage",
+      "question": "How do read receipts and read watermarks contribute to unread-message counts?",
+      "expectedPaths": [
+        "backend/src/lib/read-receipts.js",
+        "backend/src/lib/unread.js",
+        "backend/src/models/conversation-read-state.model.js"
+      ],
+      "kind": "conceptual"
+    },
+    {
+      "id": "im-multi-01",
+      "repoId": "imessage",
+      "question": "Trace sending a direct message from the authenticated HTTP route through conversation resolution, database persistence, and real-time Socket.IO delivery.",
+      "expectedPaths": [
+        "backend/src/routes/message.route.js",
+        "backend/src/controllers/message.controller.js",
+        "backend/src/lib/conversations.js",
+        "backend/src/lib/socket.js",
+        "backend/src/models/message.model.js"
+      ],
+      "kind": "multi-file"
+    },
+    {
+      "id": "im-multi-02",
+      "repoId": "imessage",
+      "question": "How does creating a group conversation validate participants, assign an administrator, and establish real-time room membership?",
+      "expectedPaths": [
+        "backend/src/routes/conversation.route.js",
+        "backend/src/controllers/conversation.controller.js",
+        "backend/src/lib/conversations.js",
+        "backend/src/lib/socket.js"
+      ],
+      "kind": "multi-file"
+    },
+    {
+      "id": "im-multi-03",
+      "repoId": "imessage",
+      "question": "Trace an @nextalk message from mention detection through sender authorisation, conversation-context construction, AI reply generation, persistence, and socket delivery.",
+      "expectedPaths": [
+        "backend/src/controllers/message.controller.js",
+        "backend/src/lib/ai/mention.js",
+        "backend/src/lib/ai/assistant.js",
+        "backend/src/lib/ai/context.js",
+        "backend/src/lib/ai/openai.js",
+        "backend/src/lib/socket.js"
+      ],
+      "kind": "multi-file"
+    },
+    {
+      "id": "im-off-01",
+      "repoId": "imessage",
+      "question": "How are Stripe subscriptions, recurring charges, and customer invoices managed?",
+      "expectedPaths": [],
+      "kind": "off-topic"
+    },
+    {
+      "id": "im-off-02",
+      "repoId": "imessage",
+      "question": "How does the backend transcode uploaded videos into adaptive-bitrate HLS streams?",
+      "expectedPaths": [],
+      "kind": "off-topic"
+    },
+    {
+      "id": "im-off-03",
+      "repoId": "imessage",
+      "question": "How are scheduled marketing newsletters sent to users by email?",
+      "expectedPaths": [],
+      "kind": "off-topic"
+    },
+    {
+      "id": "im-off-04",
+      "repoId": "imessage",
+      "question": "How does the application calculate employee payroll, tax deductions, and payslips?",
+      "expectedPaths": [],
+      "kind": "off-topic"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "repos": [
+    { "id": "nextalk", "url": "https://github.com/OWNER/NEXTALK-REPO" },
+    { "id": "small", "url": "https://github.com/OWNER/SMALL-REPO" }
+  ],
+  "questions": [
+    {
+      "id": "nt-01",
+      "repoId": "nextalk",
+      "question": "Where is the jwt verified?",
+      "expectedPaths": ["server/src/middleware/auth.js"],
+      "kind": "exact-identifier"
+    },
+    {
+      "id": "nt-02",
+      "repoId": "nextalk",
+      "question": "How does a user send a message to another user in real time?",
+      "expectedPaths": ["server/src/socket.js", "client/src/hooks/useChat.js"],
+      "kind": "multi-file"
+    },
+    {
+      "id": "nt-03",
+      "repoId": "nextalk",
+      "question": "How are payments and invoices handled?",
+      "expectedPaths": [],
+      "kind": "off-topic"
+    }
+  ]
+}
