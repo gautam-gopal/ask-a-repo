@@ -28,6 +28,10 @@ export const fakeUser = {
     return user;
   },
 
+  async estimatedDocumentCount() {
+    return users.length;
+  },
+
   // Real code does User.findOne({ email }).select("+passwordHash")
   findOne({ email }) {
     const found = users.find((u) => u.email === email) ?? null;

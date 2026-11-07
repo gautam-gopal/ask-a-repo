@@ -652,3 +652,45 @@
 
 - Four questions whose answer is in a test file, reported separately and excluded from headline metrics and the threshold sweep. Expected to miss with exclusion on.
 - Run with exclusion on and off to measure the cost of D-087. Results are in FINDINGS section 7.
+
+## D-091: trust proxy = 1 (TRUST_PROXY)
+
+- Context: on Render the TCP peer is Render's proxy, so req.ip would be the proxy's address and every user would share one rate-limit bucket.
+- Decision: app.set("trust proxy", TRUST_PROXY), default 1. Express then reads the client IP from X-Forwarded-For counting that many entries from the right, so a spoofed left-hand value is ignored. Never `true` (trusts any header).
+- Unverified: how many hops Render (and any CDN in front) adds. Verify with the RateLimit-Remaining check in STATUS/README; if all users share a bucket, raise TRUST_PROXY.
+
+## D-092: Rate limits and why these numbers
+
+- signup 5/hour/IP (all attempts count): a person needs one signup; this stops account farming.
+- login 10/15 min/IP, failures only: allows typos, stops password guessing; successes are refunded.
+- ask, ask/stream, search 20/10 min/user (one shared counter) plus 60/10 min/IP backstop: a real person asks a few per minute; the IP bucket covers many accounts from one address. These cost embedding and LLM quota.
+- ingest 5/day/user plus 10/day/IP: a repo costs up to about 3,400 neurons (D-029).
+- general 300/15 min/IP on /api. GET /api/repos\* is skipped, because the client polls every 3 s while indexing (300 per 15 min on its own). Reads are cheap and authenticated.
+- All overridable via RL\__ env vars; tests change them at runtime. Responses: 429, code TOO_MANY_REQUESTS, Retry-After, RateLimit-_ headers.
+
+## D-093: In-memory rate-limit stores
+
+- Counters live in process memory (express-rate-limit default). Correct for one instance. Limits: reset on every restart or deploy, and not shared across instances (would need Redis or a Mongo store).
+- Accepted: single free instance, no Redis (PROJECT.md out of scope).
+
+## D-094: Global daily budget guard
+
+- Context: per-user limits do not stop many users together from exhausting the free Cloudflare and Groq allowances.
+- Decision: one `usage` document per UTC day (neurons, llmRequests), TTL 7 days. DAILY_NEURON_BUDGET 8000 of 10,000, DAILY_LLM_REQUEST_BUDGET 500 (placeholder: set from the Groq dashboard). Ask and search are refused with 503 DAILY_BUDGET when exhausted; POST /api/repos is refused when exhausted; inside runIngest an ingest whose estimated cost exceeds the remainder ends as `failed` with DAILY_BUDGET (size is only known after fetching). Reads (list, status, history) are never blocked.
+- Limits: estimates only (chars/4 undercounts code); failed calls, retries and aborted streams are not counted; Groq limits are per model, per minute and in tokens, which a request count does not capture; check-then-record is not atomic.
+
+## D-095: Signup cap
+
+- MAX_USERS 200, checked with estimatedDocumentCount (metadata, cheap). 503 SIGNUPS_CLOSED. Two simultaneous signups can overshoot by one or two; accepted.
+
+## D-096: helmet, CSP and body limit
+
+- CSP: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; upgrade-insecure-requests only in production.
+- Why no 'unsafe-inline': the Vite build is an external module script plus an external stylesheet (index.html has no inline code), and React sets styles through the DOM, which CSP does not block. Not verified against a real production build: check the browser console on Render.
+- SSE and fetch are same-origin, so connect-src 'self' covers them. CORS stays off (same origin). JSON body limit 16 KB (was 10 KB), 413 in the standard shape. The general limiter runs before body parsing.
+
+## D-097: Request logging and redaction
+
+- One JSON line per request: id, method, route template, status, ms, userId. The id is generated and returned as X-Request-Id. No bodies, cookies, headers, query strings, emails or IPs. /healthz is not logged.
+- redact() strips configured secrets, connection strings, bearer tokens, key=value secrets and emails. It is used by the central error logger, the stream error logger and the ingest INTERNAL logger.
+- Limit: other ad-hoc log lines that print err.message are not redacted.

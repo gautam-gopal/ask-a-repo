@@ -10,6 +10,8 @@ import {
   setAuthCookie,
   clearAuthCookie,
 } from "../middleware/auth.js";
+import { signupLimit, loginLimit } from "../middleware/rateLimit.js";
+import { signupCap } from "../middleware/signupCap.js";
 
 // Cost 10: bcryptjs is pure JS and Render free has 0.1 CPU; higher is too slow.
 const BCRYPT_COST = 10;
@@ -36,40 +38,55 @@ const loginSchema = z.object({
 export const authRouter = Router();
 export const meRouter = Router();
 
-authRouter.post("/signup", validate(signupSchema), async (req, res) => {
-  const { email, password } = req.body;
-  const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
+authRouter.post(
+  "/signup",
+  signupLimit,
+  validate(signupSchema),
+  signupCap,
+  async (req, res) => {
+    const { email, password } = req.body;
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
 
-  let user;
-  try {
-    user = await User.create({ email, passwordHash });
-  } catch (err) {
-    if (err?.code === 11000) {
+    let user;
+    try {
+      user = await User.create({ email, passwordHash });
+    } catch (err) {
+      if (err?.code === 11000) {
+        throw new AppError(
+          409,
+          "EMAIL_TAKEN",
+          "An account with this email already exists",
+        );
+      }
+      throw err;
+    }
+
+    setAuthCookie(res, signToken(user));
+    res.status(201).json({ user });
+  },
+);
+
+authRouter.post(
+  "/login",
+  loginLimit,
+  validate(loginSchema),
+  async (req, res) => {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email }).select("+passwordHash");
+
+    const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+    if (!user || !ok) {
       throw new AppError(
-        409,
-        "EMAIL_TAKEN",
-        "An account with this email already exists",
+        401,
+        "INVALID_CREDENTIALS",
+        "Invalid email or password",
       );
     }
-    throw err;
-  }
 
-  setAuthCookie(res, signToken(user));
-  res.status(201).json({ user });
-});
-
-authRouter.post("/login", validate(loginSchema), async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email }).select("+passwordHash");
-
-  const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
-  if (!user || !ok) {
-    throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
-  }
-
-  setAuthCookie(res, signToken(user));
-  res.json({ user });
-});
+    setAuthCookie(res, signToken(user));
+    res.json({ user });
+  },
+);
 
 authRouter.post("/logout", (_req, res) => {
   clearAuthCookie(res);

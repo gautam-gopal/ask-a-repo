@@ -14,6 +14,13 @@ export default defineConfig({
       CLOUDFLARE_API_TOKEN: "test-cf-token-not-real",
       GROQ_API_KEY: "test-groq-key-not-real",
       SEARCH_MIN_SCORE: "0.6",
+      RL_SIGNUP_MAX: "1000000",
+      RL_LOGIN_MAX: "1000000",
+      RL_ASK_USER_MAX: "1000000",
+      RL_ASK_IP_MAX: "1000000",
+      RL_INGEST_USER_MAX: "1000000",
+      RL_INGEST_IP_MAX: "1000000",
+      RL_GENERAL_MAX: "1000000",
     },
   },
 });

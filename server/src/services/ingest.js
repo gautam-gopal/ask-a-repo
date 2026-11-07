@@ -16,6 +16,9 @@ import {
 import { Repo } from "../models/Repo.js";
 import { Chunk } from "../models/Chunk.js";
 import { config } from "../config.js";
+import { AppError } from "../middleware/errors.js";
+import { assertNeurons, recordNeurons } from "./usage.js";
+import { redact } from "../redact.js";
 
 export const MAX_REPOS_PER_USER = 3;
 export const MAX_CONCURRENT_INGESTS = 2;
@@ -126,6 +129,8 @@ function toSafeError(err) {
         : null;
   const hit = table?.[err.code];
   if (hit) return { ...hit };
+  if (err instanceof AppError && err.code === "DAILY_BUDGET")
+    return { code: err.code, message: err.message };
   if (
     err instanceof IngestError &&
     (err.code === "INGEST_TIMEOUT" || err.code === "NO_CONTENT")
@@ -152,7 +157,7 @@ async function fail(repoId, err) {
     if (err instanceof RepoGoneError) return;
     const safe = toSafeError(err);
     if (safe.code === "INTERNAL")
-      console.error(`Ingest ${repoId} failed:`, err?.stack ?? err);
+      console.error(`Ingest ${repoId} failed:`, redact(err?.stack ?? err));
     else console.warn(`Ingest ${repoId} failed: ${safe.code}`);
     await Repo.updateOne(
       { _id: repoId },
@@ -195,6 +200,10 @@ export async function runIngest(repoId) {
         "NO_CONTENT",
         "No indexable text found in the supported files.",
       );
+    // Exact size is only known now, so an over-budget repo ends as `failed` (DAILY_BUDGET), not a POST 503.
+    await assertNeurons(
+      estimateUsage(chunks.map((c) => c.embedText)).estNeurons,
+    );
     await update(repo._id, {
       "progress.total": chunks.length,
       "progress.embedded": 0,
@@ -221,6 +230,7 @@ export async function runIngest(repoId) {
         { ordered: false, throwOnValidationError: true },
       );
       const est = estimateUsage(texts);
+      await recordNeurons(est.estNeurons);
       tokens += est.estTokens;
       neurons += est.estNeurons;
       await update(repo._id, {
