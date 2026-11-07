@@ -35,6 +35,7 @@ import {
   chunks,
   resetIngestModels,
 } from "./fakeIngestModels.js";
+import { config } from "../src/config.js";
 
 const U1 = "1".repeat(24);
 const U2 = "2".repeat(24);
@@ -139,6 +140,14 @@ describe("happy path", () => {
 
   it("estimateUsage is chars/4 per text", () => {
     expect(estimateUsage(["abcd", "abcde"]).estTokens).toBe(3);
+  });
+
+  it("passes INDEX_EXCLUDE_TESTS to loadRepo", async () => {
+    await startIngest({ userId: U1, url: URL1 });
+    await idle();
+    expect(loadRepo).toHaveBeenCalledWith(expect.any(String), {
+      excludeTests: config.INDEX_EXCLUDE_TESTS,
+    });
   });
 });
 

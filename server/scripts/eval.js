@@ -29,7 +29,7 @@ import { Chunk } from "../src/models/Chunk.js";
 import { buildPipeline, retrieveByVector } from "../src/services/retrieve.js";
 import {
   DEFAULTS,
-  ON_TOPIC_KINDS,
+  REPORT_KINDS,
   TOP_K,
   parseConfig,
   validateQuestions,
@@ -150,6 +150,7 @@ async function main() {
   const cfg = parseConfig(process.argv.slice(2), {
     ...DEFAULTS,
     queryPrefix: config.QUERY_PREFIX_ENABLED,
+    excludeTests: config.INDEX_EXCLUDE_TESTS,
   });
   const data = JSON.parse(fs.readFileSync(QUESTIONS_FILE, "utf8"));
   const problems = validateQuestions(data);
@@ -181,14 +182,16 @@ async function main() {
   }
 
   if (cfg.excludeTests) {
-    const bad = data.questions.flatMap((q) =>
-      q.expectedPaths
-        .filter(isTestPath)
-        .map(
-          (p) =>
-            `question "${q.id}": expected path "${p}" is a test file and would be excluded`,
-        ),
-    );
+    const bad = data.questions
+      .filter((q) => q.kind !== "test-targeted")
+      .flatMap((q) =>
+        q.expectedPaths
+          .filter(isTestPath)
+          .map(
+            (p) =>
+              `question "${q.id}": expected path "${p}" is a test file and would be excluded`,
+          ),
+      );
     if (bad.length) {
       console.error("--exclude-tests conflicts with expected paths:");
       bad.forEach((p) => console.error(`  - ${p}`));
@@ -377,7 +380,7 @@ async function main() {
       fix(g.avgRank, 2),
     ]);
   add("overall (on-topic)", m.overall);
-  for (const k of ON_TOPIC_KINDS) add(k, m.byKind[k]);
+  for (const k of REPORT_KINDS) add(k, m.byKind[k]);
   console.log(
     "\nMetric: FILE-level hit, any expected path among the top 5 results. MRR counts the top 5 only.",
   );
@@ -463,7 +466,7 @@ async function main() {
     "| group | n | hit@1 | hit@3 | hit@5 | MRR | avg rank of first hit |",
     "|---|---|---|---|---|---|---|",
     mdRow("overall (on-topic)", m.overall),
-    ...ON_TOPIC_KINDS.map((k) => mdRow(k, m.byKind[k])),
+    ...REPORT_KINDS.map((k) => mdRow(k, m.byKind[k])),
     "",
     "## Top-score distributions (for the 10B threshold)",
     scoreLine("on-topic", m.onTopicScores),

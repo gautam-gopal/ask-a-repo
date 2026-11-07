@@ -526,3 +526,33 @@ describe("result rows (topScore regression)", () => {
       for (const v of Object.values(r)) expect(Number.isNaN(v)).toBe(false);
   });
 });
+
+describe("test-targeted kind", () => {
+  it("validates like other on-topic kinds", () => {
+    const d = valid();
+    d.questions.push({
+      id: "q5",
+      repoId: "r1",
+      question: "how is auth tested?",
+      expectedPaths: ["a.test.js"],
+      kind: "test-targeted",
+    });
+    expect(validateQuestions(d)).toEqual([]);
+  });
+  it("is reported separately and excluded from the headline metrics", () => {
+    const m = computeMetrics([
+      { kind: "conceptual", rank: 1, topScore: 0.85 },
+      { kind: "test-targeted", rank: null, topScore: 0.8 },
+    ]);
+    expect(m.overall.n).toBe(1);
+    expect(m.onTopicScores.n).toBe(1);
+    expect(m.byKind["test-targeted"]).toMatchObject({ n: 1, hit5: 0 });
+  });
+  it("is ignored by the threshold sweep", () => {
+    const row = sweepThresholds([
+      { kind: "conceptual", topScore: 0.85 },
+      { kind: "test-targeted", topScore: 0.7 },
+    ]).find((r) => r.t === 0.8);
+    expect(row).toMatchObject({ onN: 1, onPass: 1 });
+  });
+});

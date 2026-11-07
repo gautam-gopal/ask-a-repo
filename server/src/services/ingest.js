@@ -15,6 +15,7 @@ import {
 } from "./embeddings.js";
 import { Repo } from "../models/Repo.js";
 import { Chunk } from "../models/Chunk.js";
+import { config } from "../config.js";
 
 export const MAX_REPOS_PER_USER = 3;
 export const MAX_CONCURRENT_INGESTS = 2;
@@ -184,6 +185,7 @@ export async function runIngest(repoId) {
     await update(repo._id, { status: "indexing" });
     const loaded = await loadRepo(
       `https://github.com/${repo.owner}/${repo.name}`,
+      { excludeTests: config.INDEX_EXCLUDE_TESTS },
     );
     checkDeadline();
 

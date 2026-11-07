@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { generate, generateStream } from "./llm.js";
 import { buildMessages, extractCitations } from "./prompt.js";
 
-// SEARCH_MIN_SCORE is PROVISIONAL (default 0.79, D-084), based on the
+// SEARCH_MIN_SCORE is PROVISIONAL (default 0.795, D-089), based on the
 // threshold sweep across 30 on-topic and 8 off-topic questions.
 // BGE cosine scores are compressed (D-023), so on-topic and off-topic
 // ranges overlap and this gate only catches the clearest misses.

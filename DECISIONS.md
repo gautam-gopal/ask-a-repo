@@ -626,3 +626,29 @@
 - Decision: keep test exclusion as an evaluation-only option. Production ingestion remains unchanged.
 - Why: the observed improvement is encouraging, but the dataset is small and does not measure questions about how code is tested. Excluding tests could make those questions harder to answer.
 - Revisit after adding test-focused questions and evaluating alternatives such as a path-based score penalty or a user-facing toggle.
+- Superseded by D-087 (adopted in production).
+
+## D-087: Adopt B2 in production: exclude test files (INDEX_EXCLUDE_TESTS)
+
+- Context: excluding tests raised hit@5 from 80.0% to 86.7% (24/30 to 26/30) and MRR from 0.547 to 0.650, and fixed both exact-identifier failures (D-086).
+- Decision: config flag INDEX_EXCLUDE_TESTS, default true. filterTree skips test and spec files (shared matcher in services/testPaths.js, also used by the eval) and counts them as test_file. The eval defaults to the same flag. Chunker and retrieval defaults unchanged.
+- Why in filterTree: test files are never downloaded, so they cost no GitHub requests and do not count towards MAX_FILES.
+- Trade-off: "how is X tested?" questions get worse. The gain is confounded: it removes 36% of chunks and no headline question targets tests. D-090 measures the cost.
+- Applies to new ingests only. Existing repos keep their test chunks until deleted and re-added.
+- What would change this: the D-090 results, or a user-facing toggle.
+
+## D-088: Variants not adopted
+
+- Merge off, query prefix on, max-chars 1000 and window 30 / overlap 5 were each run against B2. On hit@5 none differs from B2 by more than one question; on hit@1 and hit@3 differences reach three questions.
+- Decision: keep 50 / 10 / 1500 / path prefix on / query prefix off / merge on. None is adopted and none is claimed to be worse; the sample cannot tell.
+
+## D-089: SEARCH_MIN_SCORE 0.795 (provisional)
+
+- Policy: highest 0.005 step that rejects zero on-topic questions in the no-tests run. On-topic min is 0.7988, so 0.795. It rejects 4/8 off-topic questions and passes 6/6 overview. At 0.800 one overview question is rejected.
+- Provisional: small sample, tuned on the questions it is scored on, overlapping score ranges, margin of 0.004 from one question. Second layer is the prompt's insufficient-excerpts rule.
+- Supersedes D-084 (0.79, identical measured outcomes).
+
+## D-090: test-targeted question kind
+
+- Four questions whose answer is in a test file, reported separately and excluded from headline metrics and the threshold sweep. Expected to miss with exclusion on.
+- Run with exclusion on and off to measure the cost of D-087. Results are in FINDINGS section 7.

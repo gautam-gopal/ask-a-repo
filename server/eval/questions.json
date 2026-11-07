@@ -16,36 +16,28 @@
       "id": "ar-exact-01",
       "repoId": "askarepo",
       "question": "Where is the requireAuth middleware implemented?",
-      "expectedPaths": [
-        "server/src/middleware/auth.js"
-      ],
+      "expectedPaths": ["server/src/middleware/auth.js"],
       "kind": "exact-identifier"
     },
     {
       "id": "ar-exact-02",
       "repoId": "askarepo",
       "question": "Where is parseRepoUrl() defined?",
-      "expectedPaths": [
-        "server/src/services/github.js"
-      ],
+      "expectedPaths": ["server/src/services/github.js"],
       "kind": "exact-identifier"
     },
     {
       "id": "ar-exact-03",
       "repoId": "askarepo",
       "question": "Where is chunkFile() implemented?",
-      "expectedPaths": [
-        "server/src/services/chunker.js"
-      ],
+      "expectedPaths": ["server/src/services/chunker.js"],
       "kind": "exact-identifier"
     },
     {
       "id": "ar-exact-04",
       "repoId": "askarepo",
       "question": "Where is buildPipeline() defined for MongoDB vector search?",
-      "expectedPaths": [
-        "server/src/services/retrieve.js"
-      ],
+      "expectedPaths": ["server/src/services/retrieve.js"],
       "kind": "exact-identifier"
     },
     {
@@ -62,18 +54,14 @@
       "id": "ar-concept-02",
       "repoId": "askarepo",
       "question": "How does the application fetch a GitHub repository and restrict which files can be indexed?",
-      "expectedPaths": [
-        "server/src/services/github.js"
-      ],
+      "expectedPaths": ["server/src/services/github.js"],
       "kind": "conceptual"
     },
     {
       "id": "ar-concept-03",
       "repoId": "askarepo",
       "question": "How are source files divided into overlapping chunks while respecting the character limit?",
-      "expectedPaths": [
-        "server/src/services/chunker.js"
-      ],
+      "expectedPaths": ["server/src/services/chunker.js"],
       "kind": "conceptual"
     },
     {
@@ -168,54 +156,42 @@
       "id": "im-exact-01",
       "repoId": "imessage",
       "question": "Where is protectRoute() implemented?",
-      "expectedPaths": [
-        "backend/src/middleware/auth.middleware.js"
-      ],
+      "expectedPaths": ["backend/src/middleware/auth.middleware.js"],
       "kind": "exact-identifier"
     },
     {
       "id": "im-exact-02",
       "repoId": "imessage",
       "question": "Where is containsAssistantMention() defined?",
-      "expectedPaths": [
-        "backend/src/lib/ai/mention.js"
-      ],
+      "expectedPaths": ["backend/src/lib/ai/mention.js"],
       "kind": "exact-identifier"
     },
     {
       "id": "im-exact-03",
       "repoId": "imessage",
       "question": "Where is markMessagesReadUpTo() implemented?",
-      "expectedPaths": [
-        "backend/src/lib/read-receipts.js"
-      ],
+      "expectedPaths": ["backend/src/lib/read-receipts.js"],
       "kind": "exact-identifier"
     },
     {
       "id": "im-exact-04",
       "repoId": "imessage",
       "question": "Where is getMessagePage() defined for paginated message history?",
-      "expectedPaths": [
-        "backend/src/lib/message-history.js"
-      ],
+      "expectedPaths": ["backend/src/lib/message-history.js"],
       "kind": "exact-identifier"
     },
     {
       "id": "im-concept-01",
       "repoId": "imessage",
       "question": "How does an authenticated HTTP request resolve a Clerk identity to the application's local user record?",
-      "expectedPaths": [
-        "backend/src/middleware/auth.middleware.js"
-      ],
+      "expectedPaths": ["backend/src/middleware/auth.middleware.js"],
       "kind": "conceptual"
     },
     {
       "id": "im-concept-02",
       "repoId": "imessage",
       "question": "How does a Socket.IO connection authenticate its handshake and associate sockets with online users?",
-      "expectedPaths": [
-        "backend/src/lib/socket.js"
-      ],
+      "expectedPaths": ["backend/src/lib/socket.js"],
       "kind": "conceptual"
     },
     {
@@ -322,9 +298,7 @@
       "id": "ar-overview-01",
       "repoId": "askarepo",
       "question": "What does Ask-a-Repo let a signed-in user do, and what are the main capabilities of the application?",
-      "expectedPaths": [
-        "PROJECT.md"
-      ],
+      "expectedPaths": ["PROJECT.md"],
       "kind": "overview"
     },
     {
@@ -365,10 +339,7 @@
       "id": "im-overview-02",
       "repoId": "imessage",
       "question": "Which main frameworks, libraries, and services does iMessage use on its frontend and backend?",
-      "expectedPaths": [
-        "frontend/package.json",
-        "backend/package.json"
-      ],
+      "expectedPaths": ["frontend/package.json", "backend/package.json"],
       "kind": "overview"
     },
     {
@@ -383,6 +354,34 @@
         "backend/src/lib/socket.js"
       ],
       "kind": "overview"
+    },
+    {
+      "id": "ar-test-01",
+      "repoId": "askarepo",
+      "question": "How is parseRepoUrl rejecting hostile or malformed repository URLs tested?",
+      "expectedPaths": ["server/test/github.test.js"],
+      "kind": "test-targeted"
+    },
+    {
+      "id": "ar-test-02",
+      "repoId": "askarepo",
+      "question": "Where is it tested that an expired or forged auth token is rejected?",
+      "expectedPaths": ["server/test/auth.middleware.test.js"],
+      "kind": "test-targeted"
+    },
+    {
+      "id": "im-test-01",
+      "repoId": "imessage",
+      "question": "How are Socket.IO handshake authentication and online presence tested?",
+      "expectedPaths": ["backend/tests/socket/handshake-and-presence.test.js"],
+      "kind": "test-targeted"
+    },
+    {
+      "id": "im-test-02",
+      "repoId": "imessage",
+      "question": "How is message pagination tested?",
+      "expectedPaths": ["backend/tests/api/pagination.test.js"],
+      "kind": "test-targeted"
     }
   ]
 }

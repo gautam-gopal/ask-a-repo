@@ -1,16 +1,16 @@
 # Retrieval evaluation findings
 
-Fill the TBD cells from `server/eval/results.csv` and `server/eval/runs/*.md`. Never write a number you did not measure.
+Numbers come from `server/eval/results.csv` and `server/eval/runs/*.md`. `TODO` means not run yet. Nothing here is a measured claim beyond what the runs show.
 
 ## 1. Setup
 
 - Metric: file-level hit, any expected FILE in the top 5 (D-078). Retrieval only, no LLM.
 - Embeddings: @cf/baai/bge-base-en-v1.5, 768 dims, cosine, Atlas $vectorSearch with repoId pre-filter, numCandidates 100.
-- Repos: gautam-gopal/ask-a-repo @ 76d6d81, gautam-gopal/imessage @ 92aea87 (pinned).
-- Questions: 30 on-topic (8 exact-identifier, 10 conceptual, 6 multi-file, 6 overview), 8 off-topic.
+- Repos (two, pinned): gautam-gopal/ask-a-repo @ 76d6d81, gautam-gopal/imessage @ 92aea87.
+- Questions: 38. 30 on-topic (8 exact-identifier, 10 conceptual, 6 multi-file, 6 overview) and 8 off-topic. Written by me, who knows both repos.
 - Defaults under test: window 50, overlap 10, max-chars 1500, path prefix on, query prefix off, merge on.
 
-## 2. Baseline (873 chunks, avg 1294.6 chars)
+## 2. Baseline (tests indexed, 873 chunks)
 
 | group              |   n | hit@1 | hit@3 | hit@5 |   MRR |
 | ------------------ | --: | ----: | ----: | ----: | ----: |
@@ -20,86 +20,77 @@ Fill the TBD cells from `server/eval/results.csv` and `server/eval/runs/*.md`. N
 | multi-file         |   6 | 50.0% | 83.3% | 83.3% | 0.667 |
 | overview           |   6 | 50.0% | 66.7% | 66.7% | 0.556 |
 
-## 3. Experiments
+## 3. Exclude-tests experiment (B2, 560 chunks)
 
-The original baseline uses all files. B2 uses the same retrieval and chunking settings but excludes test files for evaluation.
+Excluding 58 test files cut the corpus from 873 to 560 chunks (-36%).
 
-| label         | change                  | hit@1 | hit@3 | hit@5 |   MRR | comparison          |
-| ------------- | ----------------------- | ----: | ----: | ----: | ----: | ------------------- |
-| baseline      | Original configuration  | 36.7% | 73.3% | 80.0% | 0.547 | Reference           |
-| no-tests (B2) | Exclude test files      | 46.7% | 86.7% | 86.7% | 0.650 | +6.7 pp vs baseline |
-| b2-qprefix    | Query prefix on         | 46.7% | 76.7% | 83.3% | 0.604 | -3.4 pp vs B2       |
-| b2-nomerge    | Merge off               | 46.7% | 80.0% | 86.7% | 0.639 | 0.0 pp vs B2        |
-| b2-max1000    | Maximum characters 1000 | 46.7% | 73.3% | 83.3% | 0.607 | -3.4 pp vs B2       |
-| b2-w30o5      | Window 30, overlap 5    | 36.7% | 80.0% | 83.3% | 0.575 | -3.4 pp vs B2       |
+| group              |   n | hit@1 |  hit@3 |  hit@5 |   MRR |
+| ------------------ | --: | ----: | -----: | -----: | ----: |
+| overall (on-topic) |  30 | 46.7% |  86.7% |  86.7% | 0.650 |
+| exact-identifier   |   8 | 12.5% | 100.0% | 100.0% | 0.542 |
+| conceptual         |  10 | 60.0% |  90.0% |  90.0% | 0.733 |
+| multi-file         |   6 | 66.7% |  83.3% |  83.3% | 0.750 |
+| overview           |   6 | 50.0% |  66.7% |  66.7% | 0.556 |
 
-### Interpretation
+hit@5 went from 24/30 to 26/30, a difference of two questions. Both baseline exact-identifier failures (im-exact-02, im-exact-03) were test files outranking the implementation, and both are fixed. Adopted in production as INDEX_EXCLUDE_TESTS, default true (D-087).
 
-- B2 achieved the highest MRR (0.650) and tied for the highest Hit@5 (86.7%).
-- Disabling merge tied B2 on Hit@5 but produced a lower MRR (0.639).
-- Query prefix, smaller maximum chunk size, and smaller window/overlap did not improve overall retrieval.
-- B2 remains the preferred evaluation configuration: window 50, overlap 10, max-chars 1500, path prefix on, query prefix off, merge on.
-- Test exclusion remains evaluation-only (D-086). Production adoption requires a separate decision because test-focused questions have not yet been evaluated.
-- With 30 on-topic questions, one question changes Hit@5 by 3.3 percentage points. Differences of one or two questions should be interpreted cautiously.
+## 4. Variants against B2
 
-## 4. Threshold (SEARCH_MIN_SCORE)
+| label         | change               | hit@1 | hit@3 | hit@5 |   MRR |
+| ------------- | -------------------- | ----: | ----: | ----: | ----: |
+| no-tests (B2) | reference            | 46.7% | 86.7% | 86.7% | 0.650 |
+| b2-nomerge    | merge off            | 46.7% | 80.0% | 86.7% | 0.639 |
+| b2-qprefix    | query prefix on      | 46.7% | 76.7% | 83.3% | 0.604 |
+| b2-max1000    | max-chars 1000       | 46.7% | 73.3% | 83.3% | 0.607 |
+| b2-w30o5      | window 30, overlap 5 | 36.7% | 80.0% | 83.3% | 0.575 |
 
-- On-topic top scores: min 0.799, p25 0.852, median 0.860, p75 0.873, max 0.889 (n=30).
-- Off-topic top scores: min 0.767, p25 0.781, median 0.790, p75 0.816, max 0.845 (n=8).
-- Threshold sweep: 0.700 to 0.900, increments of 0.005.
-- At 0.790: 30/30 on-topic pass, 4/8 off-topic rejected, 6/6 overview pass.
-- At 0.795: identical outcomes.
-- At 0.800: 29/30 on-topic pass, 5/8 off-topic rejected, 5/6 overview pass.
-- Decision: provisional SEARCH_MIN_SCORE = 0.79 (D-084).
-- The score ranges overlap. No threshold perfectly separates on-topic and off-topic questions.
-- Second layer: the prompt's "excerpts do not contain the answer" rule.
-- Limitations: 30 on-topic and 8 off-topic questions across two repositories. Results are indicative, not proof.
-- Final calibration is pending. Re-run the threshold sweep after selecting the production configuration; 0.79 remains provisional.
+On hit@5 no variant differs from B2 by more than one question (26/30 vs 25/30 or 26/30). On hit@1 and hit@3 some differ by up to three questions (w30o5 hit@1, qprefix hit@3, max1000 hit@3). At n=30 that is still noise-prone. **None is adopted and none is claimed to be worse.** B2 keeps the existing defaults, so nothing was changed (D-088).
 
-## 5. Failure analysis
+## 5. Threshold (SEARCH_MIN_SCORE), run `no-tests`
 
-### Baseline failures
+- On-topic top scores: min 0.799, p25 0.843, median 0.859, p75 0.872, max 0.889 (n=30).
+- Off-topic top scores: min 0.767, p25 0.781, median 0.790, p75 0.814, max 0.845 (n=8).
+- Policy: highest threshold in steps of 0.005 that rejects zero on-topic questions, provided it rejects some off-topic ones.
+- Result: **0.795**. It passes 30/30 on-topic (6/6 overview) and rejects 4/8 off-topic, so 4/8 off-topic questions still reach the model.
+- At 0.800 one on-topic question is rejected (im-overview-01, top score 0.7988), which is also an overview question (5/6).
+- The margin is 0.004. One on-topic question defines the threshold. A question scoring below 0.795 would be wrongly refused.
+- **Provisional.** Reasons: small sample; the threshold was tuned on the same questions it is scored on; the on-topic and off-topic ranges overlap (D-023), so no threshold separates them; the prompt's "excerpts do not contain the answer" rule is the second layer. It was only measured with tests excluded and query prefix off, which is the production setup.
 
-Six on-topic questions missed their expected files in the top 5:
+## 6. Failure analysis (4 remaining B2 misses)
 
-- `im-exact-02` — `containsAssistantMention()`: backend and frontend tests outranked `backend/src/lib/ai/mention.js`.
-- `im-exact-03` — `markMessagesReadUpTo()`: tests and a frontend hook outranked `backend/src/lib/read-receipts.js`.
-- `im-concept-03` — direct conversation uniqueness: frontend store and tests outranked the backend conversation implementation.
-- `im-multi-01` — direct-message lifecycle: frontend store and tests outranked the expected backend route, controller, conversation, socket, and message-model files.
-- `im-overview-01` — application workflows: frontend hooks and store outranked the expected application entry point and backend routes.
-- `im-overview-02` — technology stack: frontend store and components outranked the expected frontend and backend package manifests.
+The causes below are guesses; I did not test them.
 
-### Effect of excluding test files
+- im-concept-03 (one direct conversation per user pair): frontend store chunks rank first. Likely the store has more conversation-related text than the small backend helper and model.
+- im-multi-01 (trace a direct message through 5 files): top hits are the frontend store and the conversation controller. Likely one long question cannot be close to five different chunks.
+- im-overview-01 (what kind of app, main workflows): frontend hooks and store rank first. Likely no chunk summarises the app, so the question matches whatever code mentions conversations most.
+- im-overview-02 (frameworks and libraries): store chunks outrank both package.json files. Likely a dependency list embeds poorly against a prose question.
 
-Excluding 58 test files reduced the indexed corpus from 873 to 560 chunks.
+All four are imessage questions where frontend files outrank backend ones. Hybrid keyword search (Phase 11) might help the identifier-style cases; it is not built.
 
-- Both exact-identifier failures were fixed: `im-exact-02` and `im-exact-03` now retrieve their expected implementation files in the top 5.
-- `im-concept-03` remains unresolved. Frontend store chunks still dominate the results, while the expected backend conversation files remain absent from the top 5.
-- `im-multi-01` remains unresolved. Frontend store chunks and conversation-related backend files appear, but the expected message route, message controller, conversation helper, socket, and message model are not retrieved in the top 5.
-- `im-overview-01` remains unresolved. Results are dominated by frontend hooks, store, and message-list components rather than the expected application entry point and backend routes.
-- `im-overview-02` remains unresolved. Frontend store and component chunks rank above both package manifests.
+## 7. Cost of excluding tests (test-targeted questions)
 
-### Interpretation
+Four questions whose answers are located in test files were evaluated separately. They are excluded from the headline metrics and threshold sweep.
 
-Removing test files improved overall on-topic Hit@5 from 80.0% to 86.7% and MRR from 0.547 to 0.650.
+| run          | exclusion | test-targeted hit@1 |  hit@3 |  hit@5 |   MRR |
+| ------------ | --------- | ------------------: | -----: | -----: | ----: |
+| b3-test-excl | on        |                0.0% |   0.0% |   0.0% | 0.000 |
+| b3-test-incl | off       |              100.0% | 100.0% | 100.0% | 1.000 |
 
-The improvement suggests test files were competing with implementation files for exact-identifier retrieval. However, frontend-versus-backend competition and broad overview queries remain difficult.
+- With exclusion enabled, all 4 test-targeted questions missed their expected files.
+- With exclusion disabled, all 4 questions retrieved their expected files at rank 1.
+- Decision: adopt test exclusion as the production default (D-087), prioritizing normal implementation retrieval.
+- Trade-off: questions such as "How is X tested?" will not work reliably with exclusion enabled.
+- The result is based on only 4 test-targeted questions, so it should not be generalized beyond this evaluation.
 
-The no-tests experiment is evaluation-only (D-086). It does not yet establish that production indexing should exclude test files.
+## 8. Limitations
 
-## 6. Limitations
+- 30 on-topic questions, two repos, both JavaScript. One question moves hit@5 by 3.3 points and off-topic rejection by 12.5 points.
+- I wrote the questions and know the repos. B2 and the threshold were chosen after seeing results on the same questions, so the reported numbers are optimistic.
+- File-level hit does not check that the right lines or enough context were retrieved, and it says nothing about answer quality.
+- Exclude-tests confound: removing 36% of chunks makes any retrieval easier, and none of the 30 headline questions target test files. The B2 gain is not purely "tests were noise". Section 7 measures the cost.
+- Scores are compressed, so the score gate only catches the clearest misses.
+- The 512-token check is a chars/4 estimate. Window and max-chars interact (D-079).
 
-- 38 questions (30 on-topic, 8 off-topic), across 2 JavaScript repositories. The sample is small, and the questions may reflect familiarity with the repositories.
-- One question changes on-topic Hit@5 by 3.3 percentage points and off-topic rejection by 12.5 percentage points.
-- File-level hit does not check whether the correct lines or enough context were retrieved.
-- Scores are compressed (D-023), so a score threshold cannot perfectly separate on-topic from off-topic questions.
-- The 512-token check is a chars/4 estimate. Retrieval evaluation does not measure answer quality.
-- Window and max-chars interact (D-079). Experiments are single-variable.
+## 9. Next
 
-## 7. What I would do next
-
-- Finalize the production decision on test-file exclusion, considering that test-focused questions have not yet been evaluated.
-- Adopt the selected retrieval and chunking settings if supported by the production decision.
-- Recalibrate SEARCH_MIN_SCORE using the threshold sweep after the final configuration is selected.
-- Update the README with the retrieval evaluation results and implement Explain-back (Phase 10C).
-- Consider hybrid keyword search for exact identifiers in Phase 11.
+Fill section 7 after running the two commands in STATUS.md. Phase 11 (hybrid search) is skipped for now; Phase 12 hardening is next.

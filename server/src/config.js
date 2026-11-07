@@ -37,6 +37,11 @@ const schema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  // Same pattern as above on purpose: z.coerce.boolean() would turn the string "false" into true.
+  INDEX_EXCLUDE_TESTS: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
   GROQ_API_KEY: z.string().min(1, "is required (Groq API key)"),
   GROQ_MODEL: z
     .string()
@@ -46,9 +51,9 @@ const schema = z.object({
     .string()
     .regex(/^[A-Za-z0-9._\/-]+$/, "must be a model id")
     .default("openai/gpt-oss-20b"),
-  // PROVISIONAL 0.80 (D-084): just under the lowest on-topic top score of the baseline eval
-  // (0.820). Re-check with `node server/eval/threshold-sweep.js <label>` after the overview questions.
-  SEARCH_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.79),
+  // PROVISIONAL 0.795 (D-089): highest 0.005 step that rejected 0 on-topic questions in the
+  // `no-tests` eval run. Small sample, tuned on the questions it is scored on.
+  SEARCH_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.795),
 });
 
 // Treat empty values (e.g. "PORT=") as unset so defaults apply.

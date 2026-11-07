@@ -7,8 +7,13 @@ export const KINDS = [
   "multi-file",
   "overview",
   "off-topic",
+  "test-targeted",
 ];
-export const ON_TOPIC_KINDS = KINDS.filter((k) => k !== "off-topic");
+// Headline on-topic kinds. test-targeted is reported separately (D-090).
+export const ON_TOPIC_KINDS = KINDS.filter(
+  (k) => k !== "off-topic" && k !== "test-targeted",
+);
+export const REPORT_KINDS = [...ON_TOPIC_KINDS, "test-targeted"];
 export const TOP_K = 5;
 export const CHARS_PER_TOKEN = 4; // ESTIMATE, same as the rest of the project
 export const TOKEN_LIMIT = 512;
@@ -220,10 +225,10 @@ export function scoreStats(scores) {
 
 // results: [{ kind, rank, topScore }]. Hit metrics cover on-topic questions only.
 export function computeMetrics(results) {
-  const on = results.filter((r) => r.kind !== "off-topic");
+  const on = results.filter((r) => ON_TOPIC_KINDS.includes(r.kind));
   const off = results.filter((r) => r.kind === "off-topic");
   const byKind = {};
-  for (const k of ON_TOPIC_KINDS)
+  for (const k of REPORT_KINDS)
     byKind[k] = groupMetrics(results.filter((r) => r.kind === k));
   return {
     overall: groupMetrics(on),
@@ -306,19 +311,7 @@ export const pct = (x) =>
 export const fix = (x, d = 3) =>
   x === null || x === undefined ? "-" : x.toFixed(d);
 
-// ---- exclude-tests experiment (D-086) ----
-// EXPERIMENT ONLY, not a production change: excluding tests would stop "how is X tested"
-// questions from working. Matches /test/, /tests/, /__tests__/ directories and
-// *.test.* / *.spec.* files with js, jsx, ts or tsx.
-export function isTestPath(p) {
-  const s = `/${String(p).toLowerCase()}`;
-  return (
-    s.includes("/test/") ||
-    s.includes("/tests/") ||
-    s.includes("/__tests__/") ||
-    /\.(test|spec)\.(js|jsx|ts|tsx)$/.test(s)
-  );
-}
+export { isTestPath } from "../src/services/testPaths.js"; // shared with production ingest
 
 // ---- threshold sweep (D-083) ----
 // results: [{ kind, topScore }]. A question PASSES a threshold when topScore >= t, which is
@@ -327,7 +320,7 @@ export function sweepThresholds(
   results,
   { from = 0.7, to = 0.9, step = 0.005 } = {},
 ) {
-  const on = results.filter((r) => r.kind !== "off-topic");
+  const on = results.filter((r) => ON_TOPIC_KINDS.includes(r.kind));
   const off = results.filter((r) => r.kind === "off-topic");
   const ov = results.filter((r) => r.kind === "overview");
   const rows = [];

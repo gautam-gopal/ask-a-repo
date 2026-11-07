@@ -1,5 +1,6 @@
 import path from "node:path";
 import { config } from "../config.js";
+import { isTestPath } from "./testPaths.js";
 
 // ---- Caps (single place) ----
 export const MAX_FILES = 150;
@@ -231,11 +232,12 @@ export async function fetchTree(owner, repo, sha) {
 }
 
 // ---- Filtering + caps (pure; uses sizes already in the tree entries) ----
-export function filterTree(entries) {
+export function filterTree(entries, { excludeTests = false } = {}) {
   const skipped = {
     denied_dir: 0,
     lock_or_minified: 0,
     unsupported_extension: 0,
+    test_file: 0,
     too_large: 0,
   };
   const files = [];
@@ -259,6 +261,8 @@ export function filterTree(entries) {
       !ALLOWED_EXTENSIONS.has(path.posix.extname(name).toLowerCase())
     ) {
       skipped.unsupported_extension++;
+    } else if (excludeTests && isTestPath(e.path)) {
+      skipped.test_file++;
     } else if (size > MAX_FILE_BYTES) {
       skipped.too_large++;
     } else {
@@ -367,12 +371,19 @@ export async function fetchFileContents(
 }
 
 // ---- Everything: URL -> files with text ----
-export async function loadRepo(url, opts) {
+export async function loadRepo(url, opts = {}) {
+  const { excludeTests = false, ...fetchOpts } = opts;
   const parsed = parseRepoUrl(url);
   const { owner, repo, branch, sha } = await resolveRepo(parsed);
   const entries = await fetchTree(owner, repo, sha);
-  const tree = filterTree(entries);
-  const content = await fetchFileContents(owner, repo, sha, tree.files, opts);
+  const tree = filterTree(entries, { excludeTests });
+  const content = await fetchFileContents(
+    owner,
+    repo,
+    sha,
+    tree.files,
+    fetchOpts,
+  );
   if (content.files.length === 0) {
     throw new GithubError(
       "NO_SUPPORTED_FILES",

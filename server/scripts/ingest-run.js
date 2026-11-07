@@ -26,7 +26,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let repoId = null;
 try {
   // Estimate first: GitHub calls only, no Cloudflare quota, no database.
-  const loaded = await loadRepo(url);
+  const loaded = await loadRepo(url, {
+    excludeTests: config.INDEX_EXCLUDE_TESTS,
+  });
   const { chunks } = chunkRepo(loaded.files);
   const est = estimateUsage(chunks.map((c) => c.embedText));
   console.log(
