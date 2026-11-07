@@ -273,6 +273,8 @@ ask-a-repo/
 
 ### Phase 11: Hybrid search and follow-up questions
 
+**Status: Deferred for now.** Test exclusion resolved both exact-identifier retrieval failures, while the remaining failures are conceptual, multi-file, and overview questions. Proceed to Phase 12 (Hardening); revisit Phase 11 if future evaluation justifies it.
+
 **Build.** (a) Add an Atlas Search text index on `text` and `path`. Run keyword search and vector search separately, taking about 10 results from each. Merge with Reciprocal Rank Fusion, where each result scores the sum of 1 / (60 + rank), and keep the top 5. (b) For non-first messages, make a cheap call to the fallback model (`openai/gpt-oss-20b`) that rewrites the question into a standalone one using the last 2 to 3 messages, and run retrieval on the rewritten question.
 
 **Why now.** It is now measurable: rerun the eval for vector-only versus hybrid. Code questions often contain exact identifiers such as function names and environment variables. Embeddings blur these and keyword search matches them exactly.
