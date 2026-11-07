@@ -167,7 +167,7 @@ async function fail(repoId, err) {
     // Repo may stay "indexing" until the next boot recovery.
     console.error(
       `Ingest ${repoId} cleanup failed:`,
-      cleanupErr?.message ?? cleanupErr,
+      redact(cleanupErr?.message ?? cleanupErr),
     );
   }
 }

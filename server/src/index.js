@@ -9,6 +9,7 @@ import { Message } from "./models/Message.js";
 import { Usage } from "./models/Usage.js";
 import { recoverInterruptedIngests } from "./services/ingest.js";
 import { createApp } from "./app.js";
+import { redact } from "./redact.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = createApp({ clientDist: path.resolve(here, "../../client/dist") });
@@ -19,7 +20,7 @@ async function main() {
       serverSelectionTimeoutMS: 10000,
     });
   } catch (err) {
-    console.error("MongoDB connection failed:", err.message);
+    console.error("MongoDB connection failed:", redact(err.message));
     process.exit(1);
   }
   console.log(`MongoDB connected (db: ${mongoose.connection.name})`);
@@ -33,7 +34,7 @@ async function main() {
   try {
     await recoverInterruptedIngests(); // before listening: no request can race it
   } catch (err) {
-    console.error("Ingest recovery failed:", err.message);
+    console.error("Ingest recovery failed:", redact(err.message));
     process.exit(1);
   }
 

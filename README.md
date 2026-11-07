@@ -1,5 +1,9 @@
 # Ask-a-Repo
 
+[![CI](https://github.com/gautam-gopal/ask-a-repo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gautam-gopal/ask-a-repo/actions/workflows/ci.yml)
+
+Protections and known limitations: [docs/PROTECTIONS.md](docs/PROTECTIONS.md)
+
 Ask questions about any public GitHub repository and get answers that cite exact file and line ranges. Full README (architecture, setup, limitations) comes in Phase 13.
 
 ## Evaluation

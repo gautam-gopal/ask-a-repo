@@ -694,3 +694,17 @@
 - One JSON line per request: id, method, route template, status, ms, userId. The id is generated and returned as X-Request-Id. No bodies, cookies, headers, query strings, emails or IPs. /healthz is not logged.
 - redact() strips configured secrets, connection strings, bearer tokens, key=value secrets and emails. It is used by the central error logger, the stream error logger and the ingest INTERNAL logger.
 - Limit: other ad-hoc log lines that print err.message are not redacted.
+
+## D-098: CI scope, and no Docker
+
+- Context: PROJECT.md Phase 12 lists a lint step and a multi-stage Dockerfile.
+- Decision: one GitHub Actions workflow on push and pull request to main: Node 22, npm cache, `npm ci` for server and client, server tests, client tests only if a `test` script exists, client build. No secrets, no database and no network are used. The tests get dummy env values from `server/vitest.config.js`. No lint step (no linter in the repo) and no Dockerfile.
+- Why: the test suite is fully faked, so CI is fast and free. Render builds from git with `npm run build`, so Docker adds a second deploy path nobody uses. Docker is first on PROJECT.md's cut list after hybrid search.
+- Trade-off: the production environment is not reproduced locally in a container, and nothing enforces code style.
+- What would change this: a deploy target that needs an image, or a second contributor (then add a linter).
+
+## D-099: Documented limitations
+
+- Decision: the known limitations are listed in docs/PROTECTIONS.md instead of being fixed in Phase 12: in-memory limits and ingest state (single instance only), no refresh tokens or revocation, no CSRF token (SameSite=Lax only), signup email enumeration through 409, shared GitHub and Cloudflare tokens, free-tier cold starts, estimate-based daily budgets.
+- Why: each fix needs a new service or a larger change (Redis, a token-version field, email verification), which PROJECT.md puts out of scope. Listing them honestly is the interview answer.
+- What would change this: a second instance or real users.
