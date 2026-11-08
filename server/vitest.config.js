@@ -21,6 +21,8 @@ export default defineConfig({
       RL_INGEST_USER_MAX: "1000000",
       RL_INGEST_IP_MAX: "1000000",
       RL_GENERAL_MAX: "1000000",
+      RL_DEMO_MAX: "1000000",
+      DEMO_PASSWORD: "demo-test-password-1234",
     },
   },
 });

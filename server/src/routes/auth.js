@@ -10,7 +10,13 @@ import {
   setAuthCookie,
   clearAuthCookie,
 } from "../middleware/auth.js";
-import { signupLimit, loginLimit } from "../middleware/rateLimit.js";
+import { signupLimit, loginLimit, demoLimit } from "../middleware/rateLimit.js";
+import {
+  requireDemoEnabled,
+  DEMO_EMAIL,
+  DEMO_SESSION,
+  DEMO_SESSION_MS,
+} from "../middleware/demo.js";
 import { signupCap } from "../middleware/signupCap.js";
 
 // Cost 10: bcryptjs is pure JS and Render free has 0.1 CPU; higher is too slow.
@@ -45,6 +51,12 @@ authRouter.post(
   signupCap,
   async (req, res) => {
     const { email, password } = req.body;
+    if (email === DEMO_EMAIL)
+      throw new AppError(
+        409,
+        "EMAIL_TAKEN",
+        "An account with this email already exists",
+      );
     const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
 
     let user;
@@ -75,7 +87,7 @@ authRouter.post(
     const user = await User.findOne({ email }).select("+passwordHash");
 
     const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
-    if (!user || !ok) {
+    if (!user || !ok || user.isDemo) {
       throw new AppError(
         401,
         "INVALID_CREDENTIALS",
@@ -93,6 +105,15 @@ authRouter.post("/logout", (_req, res) => {
   res.json({ ok: true });
 });
 
+// No credentials in, no password check: it can only ever sign in the one isDemo user (D-105).
+authRouter.post("/demo", requireDemoEnabled, demoLimit, async (_req, res) => {
+  const user = await User.findOne({ isDemo: true });
+  if (!user)
+    throw new AppError(503, "DEMO_UNAVAILABLE", "The demo is not set up yet.");
+  setAuthCookie(res, signToken(user, DEMO_SESSION), DEMO_SESSION_MS);
+  res.json({ user });
+});
+
 meRouter.get("/", requireAuth, (req, res) => {
-  res.json({ user: req.user });
+  res.json({ user: req.user, demo: req.user.isDemo === true });
 });

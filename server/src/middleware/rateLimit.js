@@ -1,7 +1,7 @@
 // All rate limits live here. Stores are express-rate-limit's in-memory store: fine for ONE
 // instance (Render free), but counters reset on restart and are not shared across instances
 // (that would need a shared store such as Redis). See D-093.
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { config } from "../config.js";
 
 const MIN = 60_000;
@@ -14,6 +14,7 @@ export const WINDOWS = {
   ask: 10 * MIN,
   ingest: DAY,
   general: 15 * MIN,
+  demo: HOUR,
 };
 
 // Mutable on purpose: defaults come from config (RL_* env vars); tests change them and call resetRateLimits().
@@ -25,6 +26,7 @@ export const limits = {
   ingestUser: config.RL_INGEST_USER_MAX,
   ingestIp: config.RL_INGEST_IP_MAX,
   general: config.RL_GENERAL_MAX,
+  demo: config.RL_DEMO_MAX,
 };
 
 const wait = (s) =>
@@ -34,8 +36,9 @@ const wait = (s) =>
       ? `${Math.ceil(s / 60)} minutes`
       : `${Math.ceil(s / 3600)} hours`;
 
-// Only used after requireAuth, so req.user always exists.
-const userKey = (req) => String(req.user._id);
+// Only used after requireAuth. Demo visitors all share ONE user, so they are keyed by IP (D-102).
+const userKey = (req) =>
+  req.user.isDemo ? `demo:${ipKeyGenerator(req.ip)}` : String(req.user._id);
 
 function build(key, windowMs, what, extra = {}) {
   return rateLimit({
@@ -84,6 +87,7 @@ const buildAll = () => ({
   general: build("general", WINDOWS.general, "requests", {
     skip: (req) => req.method === "GET" && req.path.startsWith("/repos"),
   }),
+  demo: build("demo", WINDOWS.demo, "demo sessions"),
 });
 
 let built = buildAll();
@@ -99,3 +103,4 @@ export const generalLimit = lazy("general");
 // One instance per limit, used on ask, ask/stream and search, so the three share one counter.
 export const askLimits = [lazy("askUser"), lazy("askIp")];
 export const ingestLimits = [lazy("ingestUser"), lazy("ingestIp")];
+export const demoLimit = lazy("demo");

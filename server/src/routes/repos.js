@@ -16,6 +16,7 @@ import { askLimits, ingestLimits } from "../middleware/rateLimit.js";
 import { askBudget, searchBudget, ingestBudget } from "../middleware/budget.js";
 import { recordQueryEmbedding, recordLlm } from "../services/usage.js";
 import { redact } from "../redact.js";
+import { blockDemoWrites, messageExpiry } from "../middleware/demo.js";
 
 const ACTIVE = ["queued", "indexing"];
 const ID_RE = /^[0-9a-f]{24}$/i;
@@ -247,12 +248,29 @@ async function findOwned(req) {
   return repo;
 }
 
+// Demo visitors share one user, so their history is never read or fed to the prompt (D-103).
+async function loadHistory(repo, user) {
+  if (user.isDemo) return [];
+  const recent = await Message.find({
+    repoId: repo._id,
+    userId: user._id,
+    notFound: false,
+  })
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(HISTORY_TURNS)
+    .lean();
+  return recent
+    .reverse()
+    .map((m) => ({ question: m.question, answer: m.answer }));
+}
+
 export const reposRouter = Router();
 reposRouter.use(requireAuth);
 
 // Ingestion: rate limit and budget checks happen before ingestion starts.
 reposRouter.post(
   "/",
+  blockDemoWrites,
   ingestLimits,
   validate(createSchema),
   ingestBudget,
@@ -281,7 +299,7 @@ reposRouter.get("/:id", async (req, res) => {
   res.json({ repo: publicRepo(await findOwned(req)) });
 });
 
-reposRouter.delete("/:id", async (req, res) => {
+reposRouter.delete("/:id", blockDemoWrites, async (req, res) => {
   const repo = await findOwned(req);
 
   if (ACTIVE.includes(repo.status))
@@ -360,19 +378,7 @@ reposRouter.post(
     let result;
 
     try {
-      // Answered turns only: a not-found turn has no answer to give the model as context.
-      const recent = await Message.find({
-        repoId: repo._id,
-        userId: req.user._id,
-        notFound: false,
-      })
-        .sort({ createdAt: -1, _id: -1 })
-        .limit(HISTORY_TURNS)
-        .lean();
-
-      const history = recent
-        .reverse()
-        .map((m) => ({ question: m.question, answer: m.answer }));
+      const history = await loadHistory(repo, req.user);
 
       const hits = await retrieve({ repoId: repo._id, query: question });
       await recordQueryEmbedding(question);
@@ -407,7 +413,7 @@ reposRouter.post(
       sources,
       model,
       usedFallback,
-      ...(repo.expiresAt ? { expiresAt: repo.expiresAt } : {}),
+      ...messageExpiry(repo),
     });
 
     res.json({
@@ -424,6 +430,7 @@ reposRouter.post(
 
 reposRouter.get("/:id/messages", async (req, res) => {
   const repo = await findOwned(req);
+  if (req.user.isDemo) return res.json({ messages: [] });
 
   const recent = await Message.find({
     repoId: repo._id,
@@ -467,18 +474,7 @@ reposRouter.post(
     let history;
 
     try {
-      const recent = await Message.find({
-        repoId: repo._id,
-        userId: req.user._id,
-        notFound: false,
-      })
-        .sort({ createdAt: -1, _id: -1 })
-        .limit(HISTORY_TURNS)
-        .lean();
-
-      history = recent
-        .reverse()
-        .map((m) => ({ question: m.question, answer: m.answer }));
+      history = await loadHistory(repo, req.user);
 
       hits = await retrieve({ repoId: repo._id, query: question });
       await recordQueryEmbedding(question);
@@ -557,7 +553,7 @@ reposRouter.post(
         sources,
         model,
         usedFallback,
-        ...(repo.expiresAt ? { expiresAt: repo.expiresAt } : {}),
+        ...messageExpiry(repo),
       });
 
       send("done", {

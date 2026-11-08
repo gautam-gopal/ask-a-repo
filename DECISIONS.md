@@ -708,3 +708,39 @@
 - Decision: the known limitations are listed in docs/PROTECTIONS.md instead of being fixed in Phase 12: in-memory limits and ingest state (single instance only), no refresh tokens or revocation, no CSRF token (SameSite=Lax only), signup email enumeration through 409, shared GitHub and Cloudflare tokens, free-tier cold starts, estimate-based daily budgets.
 - Why: each fix needs a new service or a larger change (Redis, a token-version field, email verification), which PROJECT.md puts out of scope. Listing them honestly is the interview answer.
 - What would change this: a second instance or real users.
+
+## D-100: Demo mode with one shared, read-only user
+
+- Context: visitors should see results without signing up, and cold indexing wastes free quota.
+- Decision: one seeded `isDemo` user, two pre-indexed `isDemo` repos (no TTL). POST /api/auth/demo signs that user in with a 2 hour cookie. Off unless DEMO_ENABLED=true (404 otherwise).
+- Trade-off: every visitor is the same user, so anything keyed by user is shared (limits, history). D-102 and D-103 handle those two.
+- What would change this: per-visitor demo accounts (needs cleanup of throwaway users) or a visitor id on messages.
+
+## D-101: Read-only guard
+
+- Decision: `blockDemoWrites` on POST /api/repos and DELETE /api/repos/:id, before limiters and budgets: 403 DEMO_READ_ONLY. Asking, search and reads stay allowed.
+- Why per route, not by path: two lines, no path matching to get wrong. Login rejects the demo user (same 401), signup with the demo email is the normal 409 even before seeding, and logout only clears a cookie, so no auth route can change the demo user.
+
+## D-102: Demo limits are keyed by IP
+
+- Decision: the per-user ask, search and ingest limiters key demo sessions by IP (`demo:<ip>`, IPv6-safe via ipKeyGenerator) instead of the shared user id. POST /api/auth/demo has 20 per hour per IP (RL_DEMO_MAX). The global daily budgets are unchanged.
+- Why: with one user id, 20 asks per 10 minutes would be shared by every visitor.
+- Limit: visitors behind one NAT share a bucket; in-memory counters (D-093).
+
+## D-103: Demo messages are private and expire in 24 hours
+
+- Decision: per-visitor history is not feasible with one shared user (no visitor key on messages). Demo sessions get no history: GET /messages returns [] and the prompt gets no history turns, so one visitor's question can never reach another visitor or the model context. The chat still shows the visitor's own turns until reload.
+- Messages are still saved (the `done` event needs an id) with expiresAt = now + 24 h, because demo repos have no expiry to copy.
+- Trade-off: demo follow-up questions have no context and a reload clears the chat.
+- What would change this: a random visitor id in the JWT stored on messages.
+
+## D-104: Seed script
+
+- Decision: server/scripts/seed-demo.js takes two URLs, prints the neuron estimate, and only writes with --yes. It upserts the demo user, plans per repo (skip ready demo repos, retry failed, replace stuck or non-demo) in `demoSeed.js` (pure, tested), and ingests through the normal `startIngest` with `isDemo: true`, one at a time, after `assertNeurons`.
+- Bypasses: `isDemo` skips MAX_REPOS_PER_USER in ingest.js (routes never pass it); the user is created directly, never through the signup route, so the signup cap does not apply.
+- Run locally against the production database, not on Render.
+
+## D-105: The demo password is a server secret and the endpoint takes no credentials
+
+- Decision: the client sends nothing to /api/auth/demo; the server looks up the one `isDemo` user. DEMO_PASSWORD is required when DEMO_ENABLED is true (12+ characters), only used by the seed script to hash the account password, redacted from logs, never in responses.
+- Honest note: login already rejects the demo user, so the password is belt and braces. It stops the account having a guessable or empty hash if that rule were ever removed.

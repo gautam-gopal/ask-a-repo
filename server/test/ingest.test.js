@@ -333,3 +333,20 @@ describe("recoverInterruptedIngests", () => {
     expect(await recoverInterruptedIngests()).toBe(0);
   });
 });
+
+describe("demo repos", () => {
+  it("isDemo skips the per-user cap, and the repo and chunks have no expiry", async () => {
+    for (let i = 0; i < MAX_REPOS_PER_USER; i++)
+      await seedRepo({ name: `r${i}`, nameLower: `r${i}` });
+    expect(await codeOf(startIngest({ userId: U1, url: URL1 }))).toBe(
+      "REPO_LIMIT_REACHED",
+    );
+    const repo = await startIngest({ userId: U1, url: URL1, isDemo: true });
+    await idle();
+    const stored = repos.find((r) => r._id === repo._id);
+    expect(stored).toMatchObject({ isDemo: true, status: "ready" });
+    expect(stored.expiresAt).toBeUndefined();
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks.every((c) => c.expiresAt === undefined)).toBe(true);
+  });
+});

@@ -9,11 +9,15 @@ import {
 import * as api from "./api.js";
 
 const AuthContext = createContext(null);
-const ANON = { status: "anonymous", user: null };
+const ANON = { status: "anonymous", user: null, demo: false };
 
 // /api/me is the only source of truth: no token or user is stored in the browser.
 export function AuthProvider({ children }) {
-  const [state, setState] = useState({ status: "loading", user: null });
+  const [state, setState] = useState({
+    status: "loading",
+    user: null,
+    demo: false,
+  });
 
   useEffect(() => {
     let active = true;
@@ -23,7 +27,11 @@ export function AuthProvider({ children }) {
     );
     api
       .me()
-      .then(({ user }) => active && setState({ status: "authenticated", user }))
+      .then(
+        ({ user, demo }) =>
+          active &&
+          setState({ status: "authenticated", user, demo: demo === true }),
+      )
       .catch(() => active && setState(ANON));
     return () => {
       active = false;
@@ -33,11 +41,15 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const { user } = await api.login(email, password);
-    setState({ status: "authenticated", user });
+    setState({ status: "authenticated", user, demo: false });
   }, []);
   const signup = useCallback(async (email, password) => {
     const { user } = await api.signup(email, password);
-    setState({ status: "authenticated", user });
+    setState({ status: "authenticated", user, demo: false });
+  }, []);
+  const loginDemo = useCallback(async () => {
+    const { user } = await api.demoLogin();
+    setState({ status: "authenticated", user, demo: true });
   }, []);
   // Throws if the server call fails, so the cookie is never left set while the UI says "signed out".
   const logout = useCallback(async () => {
@@ -46,8 +58,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ...state, login, signup, logout }),
-    [state, login, signup, logout],
+    () => ({ ...state, login, signup, loginDemo, logout }),
+    [state, login, signup, loginDemo, logout],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

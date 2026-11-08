@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema(
     },
     // select:false so it is never loaded unless a query asks for it explicitly
     passwordHash: { type: String, required: true, select: false },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
@@ -21,6 +22,7 @@ userSchema.set("toJSON", {
     delete ret._id;
     delete ret.__v;
     delete ret.passwordHash;
+    delete ret.isDemo;
     return ret;
   },
 });

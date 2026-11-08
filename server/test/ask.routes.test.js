@@ -24,6 +24,7 @@ import {
   resetIngestModels,
 } from "./fakeIngestModels.js";
 import { makeApp } from "./app.js";
+import { DEMO_MESSAGE_TTL_MS } from "../src/middleware/demo.js";
 
 const app = makeApp();
 const U1 = "0".repeat(23) + "1";
@@ -195,12 +196,14 @@ describe("POST /api/repos/:id/ask", () => {
     expect(messages[0].expiresAt.getTime()).toBe(r.expiresAt.getTime());
   });
 
-  it("demo repo messages get no expiresAt", async () => {
+  it("demo repo messages expire after 24 hours", async () => {
     const r = await seed({ isDemo: true });
     retrieve.mockResolvedValue([hit()]);
     generate.mockResolvedValue(reply("ok [1]"));
     await ask(a1, r._id).expect(200);
-    expect(messages[0].expiresAt).toBeUndefined();
+    const ms = messages[0].expiresAt.getTime() - Date.now();
+    expect(ms).toBeGreaterThan(DEMO_MESSAGE_TTL_MS - 5000);
+    expect(ms).toBeLessThanOrEqual(DEMO_MESSAGE_TTL_MS);
   });
 
   it("not-found path returns notFound true, never calls the LLM, and is saved", async () => {

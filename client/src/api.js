@@ -122,6 +122,10 @@ export const login = (email, password) =>
   });
 export const logout = () => request("POST", "/api/auth/logout");
 export const me = () => request("GET", "/api/me", { authRedirect: false });
+export const getConfig = () =>
+  request("GET", "/api/config", { authRedirect: false });
+export const demoLogin = () =>
+  request("POST", "/api/auth/demo", { authRedirect: false });
 
 // Repos and ask (used from 8B and 8C).
 const id = encodeURIComponent;

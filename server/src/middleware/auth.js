@@ -15,18 +15,18 @@ const baseCookieOptions = {
   path: "/",
 };
 
-export function signToken(user) {
+export function signToken(user, expiresIn = "7d") {
   return jwt.sign({}, config.JWT_SECRET, {
     algorithm: "HS256",
     subject: String(user._id),
-    expiresIn: "7d",
+    expiresIn,
   });
 }
 
-export function setAuthCookie(res, token) {
+export function setAuthCookie(res, token, maxAgeMs = SEVEN_DAYS_MS) {
   res.cookie(COOKIE_NAME, token, {
     ...baseCookieOptions,
-    maxAge: SEVEN_DAYS_MS,
+    maxAge: maxAgeMs,
   });
 }
 

@@ -9,6 +9,7 @@ import {
   progressPercent,
   statusLabel,
 } from "../repoHelpers.js";
+import { useAuth } from "../auth.jsx";
 
 const POLL_MS = 3000;
 const MAX_POLL_MS = 30_000;
@@ -19,6 +20,7 @@ const sameRepo = (a, b) =>
 
 function RepoRow({
   repo,
+  readOnly,
   confirming,
   busy,
   error,
@@ -77,7 +79,7 @@ function RepoRow({
       <ErrorMessage message={error} />
 
       <div className="actions">
-        {confirming ? (
+        {confirming && !readOnly ? (
           <>
             <span className="muted small">
               Delete this repository and its chat history?
@@ -104,25 +106,26 @@ function RepoRow({
                 Open
               </Link>
             )}
-            {repo.status === "failed" ? (
-              <button
-                type="button"
-                className="secondary"
-                onClick={onDelete}
-                disabled={busy}
-              >
-                {busy ? "Removing..." : "Remove"}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="secondary"
-                onClick={onAskConfirm}
-                disabled={busy}
-              >
-                {busy ? "Deleting..." : "Delete"}
-              </button>
-            )}
+            {!readOnly &&
+              (repo.status === "failed" ? (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={onDelete}
+                  disabled={busy}
+                >
+                  {busy ? "Removing..." : "Remove"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={onAskConfirm}
+                  disabled={busy}
+                >
+                  {busy ? "Deleting..." : "Delete"}
+                </button>
+              ))}
           </>
         )}
       </div>
@@ -131,6 +134,8 @@ function RepoRow({
 }
 
 export default function ReposPage() {
+  const { demo } = useAuth();
+
   useTitle("Repositories · Ask-a-Repo");
   const notice = useLocation().state?.notice;
 
@@ -261,36 +266,39 @@ export default function ReposPage() {
           {notice}
         </p>
       )}
-
-      <form onSubmit={onAdd} noValidate className="card">
-        <h2>Add a repository</h2>
-        <label>
-          GitHub URL
-          <input
-            type="text"
-            inputMode="url"
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              setAddError(null);
-            }}
-            placeholder="https://github.com/owner/name"
-            autoComplete="off"
-            spellCheck={false}
-            maxLength={200}
-            disabled={submitting}
-          />
-        </label>
-        <ErrorMessage message={addError} />
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Adding..." : "Add repository"}
-        </button>
-      </form>
-      <p className="muted small">
-        Limits: 3 repositories, public GitHub repositories only, one indexing at
-        a time, up to 150 js, jsx, ts, tsx, json and md files (2 MB).
-        Repositories are removed after 7 days.
-      </p>
+      {!demo && (
+        <>
+          <form onSubmit={onAdd} noValidate className="card">
+            <h2>Add a repository</h2>
+            <label>
+              GitHub URL
+              <input
+                type="text"
+                inputMode="url"
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  setAddError(null);
+                }}
+                placeholder="https://github.com/owner/name"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={200}
+                disabled={submitting}
+              />
+            </label>
+            <ErrorMessage message={addError} />
+            <button type="submit" disabled={submitting}>
+              {submitting ? "Adding..." : "Add repository"}
+            </button>
+          </form>
+          <p className="muted small">
+            Limits: 3 repositories, public GitHub repositories only, one
+            indexing at a time, up to 150 js, jsx, ts, tsx, json and md files (2
+            MB). Repositories are removed after 7 days.
+          </p>
+        </>
+      )}
 
       <h2>Your repositories</h2>
       {loadError && (
@@ -324,6 +332,7 @@ export default function ReposPage() {
             <RepoRow
               key={repo.id}
               repo={repo}
+              readOnly={demo}
               confirming={confirmId === repo.id}
               busy={busyId === repo.id}
               error={rowError?.id === repo.id ? rowError.message : null}

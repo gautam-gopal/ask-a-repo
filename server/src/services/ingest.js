@@ -260,7 +260,7 @@ export async function runIngest(repoId) {
   }
 }
 
-export async function startIngest({ userId, url }) {
+export async function startIngest({ userId, url, isDemo = false }) {
   let parsed;
   try {
     parsed = parseRepoUrl(url);
@@ -315,7 +315,7 @@ export async function startIngest({ userId, url }) {
     }
 
     const count = await Repo.countDocuments({ userId });
-    if (count >= MAX_REPOS_PER_USER)
+    if (count >= MAX_REPOS_PER_USER && !isDemo)
       throw new IngestError(
         "REPO_LIMIT_REACHED",
         `You can have at most ${MAX_REPOS_PER_USER} repositories. Delete one first.`,
@@ -329,6 +329,7 @@ export async function startIngest({ userId, url }) {
         name: parsed.repo,
         ownerLower,
         nameLower,
+        isDemo,
         status: "queued",
       });
     } catch (err) {

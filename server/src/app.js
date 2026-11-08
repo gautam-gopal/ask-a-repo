@@ -10,6 +10,7 @@ import { reposRouter } from "./routes/repos.js";
 import { notFound, errorHandler } from "./middleware/errors.js";
 import { requestLog } from "./middleware/requestLog.js";
 import { generalLimit } from "./middleware/rateLimit.js";
+import { demo } from "./middleware/demo.js";
 
 const DB_STATES = {
   0: "disconnected",
@@ -57,6 +58,9 @@ export function createApp({ clientDist } = {}) {
   app.use("/api", generalLimit); // before body parsing: floods are rejected cheaply
   app.use(express.json({ limit: "16kb" }));
   app.use(cookieParser());
+  app.get("/api/config", (_req, res) =>
+    res.json({ demoEnabled: demo.enabled }),
+  );
 
   app.use("/api/auth", authRouter);
   app.use("/api/me", meRouter);

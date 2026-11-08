@@ -9,7 +9,7 @@ export function resetUsers() {
 }
 
 export const fakeUser = {
-  async create({ email, passwordHash }) {
+  async create({ email, passwordHash, isDemo = false }) {
     if (users.some((u) => u.email === email)) {
       const err = new Error("E11000 duplicate key");
       err.code = 11000;
@@ -19,7 +19,8 @@ export const fakeUser = {
       _id: String(++counter).padStart(24, "0"),
       email,
       passwordHash,
-      // Mirrors the real schema's toJSON: never expose the hash.
+      isDemo,
+      // Mirrors the real schema's toJSON: never expose the hash or the flag.
       toJSON() {
         return { id: String(this._id), email: this.email };
       },
@@ -32,10 +33,15 @@ export const fakeUser = {
     return users.length;
   },
 
-  // Real code does User.findOne({ email }).select("+passwordHash")
-  findOne({ email }) {
-    const found = users.find((u) => u.email === email) ?? null;
-    return { select: async () => found };
+  // Awaitable (User.findOne({ isDemo: true })) and chainable (.select(...)).
+  findOne(filter) {
+    const found =
+      users.find((u) => Object.entries(filter).every(([k, v]) => u[k] === v)) ??
+      null;
+    return {
+      select: async () => found,
+      then: (resolve, reject) => Promise.resolve(found).then(resolve, reject),
+    };
   },
 
   async findById(id) {

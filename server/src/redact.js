@@ -7,6 +7,7 @@ const SECRETS = [
   config.CLOUDFLARE_API_TOKEN,
   config.CLOUDFLARE_ACCOUNT_ID,
   config.GROQ_API_KEY,
+  config.DEMO_PASSWORD,
 ].filter((s) => typeof s === "string" && s.length >= 8);
 
 const PATTERNS = [

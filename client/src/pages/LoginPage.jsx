@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth.jsx";
 import { ErrorMessage, Spinner, useTitle } from "../components.jsx";
+import { getConfig } from "../api.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -20,15 +21,26 @@ function validate(mode, email, password) {
 }
 
 export default function LoginPage() {
-  const { status, login, signup } = useAuth();
+  const { status, login, signup, loginDemo } = useAuth();
   const location = useLocation();
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [demoOn, setDemoOn] = useState(false);
 
   useTitle(mode === "signup" ? "Sign up · Ask-a-Repo" : "Log in · Ask-a-Repo");
+
+  useEffect(() => {
+    let alive = true;
+    getConfig()
+      .then((c) => alive && setDemoOn(c.demoEnabled === true))
+      .catch(() => {}); // no config: just hide the button
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   if (status === "loading")
     return (
@@ -68,10 +80,37 @@ export default function LoginPage() {
     setError(null);
   }
 
+  async function onDemo() {
+    setError(null);
+    setBusy(true);
+    try {
+      await loginDemo();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="container narrow">
       <h1>Ask-a-Repo</h1>
       <p className="muted">Ask questions about any public GitHub repository.</p>
+      {demoOn && (
+        <>
+          <button
+            type="button"
+            className="demo-cta"
+            onClick={onDemo}
+            disabled={busy}
+          >
+            {busy ? "Please wait..." : "Try the demo"}
+          </button>
+          <p className="muted center-text">
+            No signup. Read-only, with two pre-indexed repositories.
+          </p>
+        </>
+      )}
       <form onSubmit={onSubmit} noValidate className="card">
         <h2>{isSignup ? "Create an account" : "Sign in"}</h2>
         <label>

@@ -33,7 +33,7 @@ export function WakingBanner({ show }) {
 }
 
 export function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, demo } = useAuth();
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -68,6 +68,20 @@ export function Layout() {
           </div>
         </div>
       </header>
+      {demo && (
+        <div className="banner banner-demo" role="status">
+          Demo mode: read-only.{" "}
+          <button
+            type="button"
+            className="link"
+            onClick={onLogout}
+            disabled={busy}
+          >
+            Sign up
+          </button>{" "}
+          to add your own repository.
+        </div>
+      )}
       <main>
         <ErrorMessage message={error} />
         <Outlet />
