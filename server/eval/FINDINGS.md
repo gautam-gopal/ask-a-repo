@@ -93,4 +93,25 @@ Four questions whose answers are located in test files were evaluated separately
 
 ## 9. Next
 
-Fill section 7 after running the two commands in STATUS.md. Phase 11 (hybrid search) is skipped for now; Phase 12 hardening is next.
+The retrieval evaluation for the current implementation is complete.
+
+The production configuration uses:
+
+- 50-line chunk windows with 10-line overlap and a 1500-character maximum.
+- File paths included in the embedded document text.
+- Query prefix disabled.
+- Adjacent retrieval hits merged.
+- Test and spec files excluded by default.
+- `SEARCH_MIN_SCORE=0.795` as a provisional retrieval threshold.
+
+Phase 11 (hybrid search and follow-up retrieval improvements) was skipped. The current implementation uses semantic vector search only.
+
+Potential future evaluation work:
+
+- Expand the evaluation dataset with more repositories, programming languages and independently written questions.
+- Introduce a held-out question set to reduce tuning bias.
+- Evaluate exact-identifier retrieval separately, particularly for function names and variable names.
+- Evaluate answer correctness, citation accuracy and groundedness in addition to file-level retrieval metrics.
+- Revisit test-file exclusion if questions about test coverage and test implementation become a priority.
+
+The current results should be interpreted within the limitations documented in Section 8. In particular, the B2 improvement is two additional questions out of 30, and the threshold was tuned on the same small dataset used for evaluation.
