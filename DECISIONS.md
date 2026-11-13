@@ -744,3 +744,35 @@
 
 - Decision: the client sends nothing to /api/auth/demo; the server looks up the one `isDemo` user. DEMO_PASSWORD is required when DEMO_ENABLED is true (12+ characters), only used by the seed script to hash the account password, redacted from logs, never in responses.
 - Honest note: login already rejects the demo user, so the password is belt and braces. It stops the account having a guessable or empty hash if that rule were ever removed.
+
+## D-106: Design tokens and a single accent
+
+- Context: the UI was a prototype with hard-coded values and several blues. Phase 14 needs one consistent look.
+- Decision: all values live in `client/src/styles/tokens.css` as CSS variables (colour, type scale, 4px spacing, radii, two shadows, focus ring, layout widths). One accent (`#2b5fc7`); success, warning, danger and neutral colours exist only for badges and alerts. Conventions are in `client/DESIGN.md`.
+- Why: one place to change a value, parts 14B and 14C reuse it, and every text/background pair was checked for WCAG AA (input borders for 3:1).
+- Trade-off: the chat page still uses legacy class names until 14C.
+- What would change this: a second theme (it would only need a token override).
+
+## D-107: System fonts only
+
+- Decision: `system-ui` and `ui-monospace` stacks, no web fonts.
+- Why: the CSP sets `font-src 'self'` and `style-src 'self'`, so Google Fonts would be blocked, and self-hosting adds download weight on a cold free host. System fonts render instantly and look native.
+- What would change this: a brand font self-hosted under `client/public` (allowed by `font-src 'self'`).
+
+## D-108: No inline styles
+
+- Decision: no `style` attributes and no runtime CSS-in-JS. The indexing progress bar changed from `style={{ width }}` to a native `<progress>` (no value means indeterminate while queued).
+- Why: the production CSP has `style-src 'self'`, which blocks inline `<style>` and `style=""` markup. React's DOM style writes happen to work, but relying on that is fragile. `<progress>` is also accessible by default.
+- What would change this: a CSP with style nonces.
+
+## D-109: Light theme only
+
+- Decision: no dark theme and no `prefers-color-scheme` switch. `color-scheme: light` is set so native controls match.
+- Why: the audience is recruiters on short visits, and a second theme doubles contrast checking and testing for no gain here.
+- What would change this: the token layer already supports it; a dark set would override the same variables.
+
+## D-110: No UI library
+
+- Decision: plain CSS plus three small shared React components (`Alert`, `PageHeader`, `EmptyState`) and CSS classes. No CSS framework, component library or icon library; no new dependencies.
+- Why: fewer dependencies and less bundle, the CSP is simple to satisfy, and every style is explainable in an interview.
+- What would change this: needing complex widgets (comboboxes, dialogs) where an accessible library saves real time.
