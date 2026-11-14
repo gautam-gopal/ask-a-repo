@@ -3,12 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { askStream, getRepo, listMessages } from "../api.js";
 import { ErrorMessage, Spinner, useTitle } from "../components.jsx";
-import {
-  formatAskError,
-  isGithubUrl,
-  linkifyCitations,
-  orderSources,
-} from "../chatHelpers.js";
+import AnswerMarkdown from "../components/AnswerMarkdown.jsx";
+import { formatAskError, isGithubUrl, orderSources } from "../chatHelpers.js";
 
 const MAX_QUESTION = 500;
 const PIN_THRESHOLD_PX = 80;
@@ -23,25 +19,12 @@ function Answer({ msg, onChip }) {
         </span>
       </p>
     );
-  const segments = linkifyCitations(msg.answer, msg.sources);
   return (
-    <p className="answer">
-      {segments.map((s, i) =>
-        s.type === "text" ? (
-          <span key={i}>{s.text}</span>
-        ) : (
-          <button
-            key={i}
-            type="button"
-            className="chip"
-            aria-label={`Show source ${s.n}`}
-            onClick={() => onChip(msg.id, s.n)}
-          >
-            [{s.n}]
-          </button>
-        ),
-      )}
-    </p>
+    <AnswerMarkdown
+      text={msg.answer ?? ""}
+      sources={msg.sources}
+      onCitationClick={(n) => onChip(msg.id, n)}
+    />
   );
 }
 
@@ -260,11 +243,19 @@ export default function ChatPage() {
 
   const onChip = useCallback((msgId, n) => {
     const key = `${msgId}-${n}`;
-    document
-      .getElementById(`src-${key}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    setFlash(key);
+    const el = document.getElementById(`src-${key}`);
+    if (!el) return;
+    pinned.current = false; // stop the stream auto-scroll fighting this scroll
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    el.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
+      block: "center",
+    });
     clearTimeout(flashTimer.current);
+    setFlash(null); // clear first so clicking the same chip again re-flashes
+    requestAnimationFrame(() => setFlash(key));
     flashTimer.current = setTimeout(() => setFlash(null), 2000);
   }, []);
 

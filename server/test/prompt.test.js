@@ -184,4 +184,94 @@ describe("extractCitations", () => {
     expect(r.cited).toEqual([1]);
     expect(r.invalid).toEqual([]);
   });
+
+  it("normalises an annotated ASCII citation to [n]", () => {
+    const r = extractCitations("A [1†lines=90-131].", 2);
+    expect(r.text).toBe("A [1].");
+    expect(r.cited).toEqual([1]);
+  });
+
+  it("normalises an annotated Unicode citation to [n]", () => {
+    const r = extractCitations("B 【5†lines=519-550】.", 5);
+    expect(r.text).toBe("B [5].");
+    expect(r.cited).toEqual([5]);
+  });
+
+  it("handles multiple and grouped annotated citations", () => {
+    const r = extractCitations(
+      "X [1†lines=1-5] Y 【2†lines=3-4】 Z [1†lines=1-5, 3] W [2, 3†lines=7-9].",
+      3,
+    );
+    expect(r.text).toBe("X [1] Y [2] Z [1, 3] W [2, 3].");
+    expect(r.cited).toEqual([1, 2, 3]);
+    expect(r.invalid).toEqual([]);
+  });
+
+  it("removes out-of-range annotated citations and records them", () => {
+    const r = extractCitations(
+      "See [7†lines=1-2] and [1] and 【9†lines=4-5】.",
+      2,
+    );
+    expect(r.text).toBe("See  and [1] and .");
+    expect(r.cited).toEqual([1]);
+    expect(r.invalid).toEqual([7, 9]);
+  });
+
+  it("filters invalid numbers inside an annotated group", () => {
+    const r = extractCitations("Both [1†lines=1-5, 9†lines=2-3].", 2);
+    expect(r.text).toBe("Both [1].");
+    expect(r.invalid).toEqual([9]);
+  });
+
+  it("discards model-supplied line ranges entirely", () => {
+    const r = extractCitations("Auth [1†lines=999-1000].", 1);
+    expect(r.text).not.toMatch(/lines=|999|1000|†/);
+    expect(r.text).toBe("Auth [1].");
+  });
+
+  it("leaves annotated-looking array indexing alone", () => {
+    const r = extractCitations("Use `items[1†lines=1-2]` here [1].", 2);
+    expect(r.text).toContain("items[1†lines=1-2]");
+    expect(r.cited).toEqual([1]);
+  });
+
+  it("normalises annotated ASCII and Unicode citations to [n]", () => {
+    expect(extractCitations("A [1†lines=90-131].", 2).text).toBe("A [1].");
+    const r = extractCitations("B 【5†lines=519-550】.", 5);
+    expect(r.text).toBe("B [5].");
+    expect(r.cited).toEqual([5]);
+  });
+  it("handles multiple and grouped annotated citations", () => {
+    const r = extractCitations(
+      "X [1†lines=1-5] Y 【2†lines=3-4】 Z [1†lines=1-5, 3] W [2, 3†lines=7-9].",
+      3,
+    );
+    expect(r.text).toBe("X [1] Y [2] Z [1, 3] W [2, 3].");
+    expect(r.cited).toEqual([1, 2, 3]);
+    expect(r.invalid).toEqual([]);
+  });
+  it("removes out-of-range annotated citations and records them", () => {
+    const r = extractCitations(
+      "See [7†lines=1-2] and [1] and 【9†lines=4-5】.",
+      2,
+    );
+    expect(r.text).toBe("See  and [1] and .");
+    expect(r.cited).toEqual([1]);
+    expect(r.invalid).toEqual([7, 9]);
+  });
+  it("filters invalid numbers inside an annotated group", () => {
+    const r = extractCitations("Both [1†lines=1-5, 9†lines=2-3].", 2);
+    expect(r.text).toBe("Both [1].");
+    expect(r.invalid).toEqual([9]);
+  });
+  it("discards model-supplied line ranges entirely", () => {
+    const r = extractCitations("Auth [1†lines=999-1000].", 1);
+    expect(r.text).toBe("Auth [1].");
+    expect(r.text).not.toMatch(/lines=|999|1000|†/);
+  });
+  it("leaves annotated-looking array indexing alone", () => {
+    const r = extractCitations("Use `items[1†lines=1-2]` here [1].", 2);
+    expect(r.text).toContain("items[1†lines=1-2]");
+    expect(r.cited).toEqual([1]);
+  });
 });

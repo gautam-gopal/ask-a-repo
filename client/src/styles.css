@@ -743,13 +743,22 @@ label,
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-base);
   border-left: 3px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  outline: 2px solid transparent;
   overflow-wrap: anywhere;
+  /* keep clear of the sticky header (top) and the sticky composer (bottom) */
+  scroll-margin-top: 7rem;
+  scroll-margin-bottom: 11rem;
+  transition:
+    background var(--transition),
+    outline-color var(--transition);
 }
 .source.cited {
   border-left-color: var(--color-accent);
 }
 .source.flash {
-  background: var(--color-warning-bg);
+  background: var(--color-accent-subtle);
+  outline-color: var(--color-accent);
 }
 .source-n {
   color: var(--color-text-muted);
@@ -769,6 +778,167 @@ label,
   align-items: center;
   justify-content: space-between;
   margin-top: var(--space-2);
+}
+
+/* ---------- Answer Markdown (14B) ---------- */
+.md {
+  line-height: var(--leading-relaxed);
+  overflow-wrap: anywhere;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md p,
+.md ul,
+.md ol,
+.md blockquote,
+.md .md-h {
+  max-width: var(--measure);
+}
+.md ul,
+.md ol {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-6);
+}
+.md li {
+  margin: var(--space-1) 0;
+}
+.md li > p {
+  margin: 0;
+}
+.md .contains-task-list {
+  padding-left: var(--space-2);
+  list-style: none;
+}
+.md input[type="checkbox"] {
+  display: inline-block;
+  width: auto;
+  min-height: 0;
+  margin: 0 var(--space-2) 0 0;
+  vertical-align: middle;
+}
+.md .md-h {
+  margin: var(--space-5) 0 var(--space-2);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+}
+.md .md-h1 {
+  font-size: var(--text-lg);
+}
+.md .md-h2 {
+  font-size: var(--text-md);
+}
+.md .md-h3 {
+  font-size: var(--text-base);
+}
+.md p.md-h4 {
+  margin: var(--space-4) 0 var(--space-2);
+}
+.md blockquote {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-4);
+  color: var(--color-text-secondary);
+  border-left: 3px solid var(--color-border-control);
+}
+.md hr {
+  margin: var(--space-5) 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+.md del {
+  color: var(--color-text-muted);
+}
+.md-inline-code {
+  padding: 0.1em 0.35em;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.md-link::after {
+  content: " \2197";
+  font-size: 0.85em;
+}
+.md-link-url {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.md-code {
+  min-width: 0;
+  max-width: 100%;
+  margin: var(--space-3) 0;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.md-code__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+.md-code pre {
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 2;
+}
+.md-code code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.md-table-wrap {
+  max-width: 100%;
+  margin: 0 0 var(--space-3);
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.md-table-wrap table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-base);
+}
+.md-table-wrap th,
+.md-table-wrap td {
+  min-width: 6rem;
+  max-width: 32rem;
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: normal;
+  border-bottom: 1px solid var(--color-border);
+}
+.md-table-wrap th {
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  background: var(--color-surface-muted);
+}
+.md-table-wrap tbody tr:nth-child(even) {
+  background: var(--color-bg);
+}
+.md-table-wrap tr:last-child td {
+  border-bottom: 0;
+}
+.md-table-wrap .md-ta-center {
+  text-align: center;
+}
+.md-table-wrap .md-ta-right {
+  text-align: right;
 }
 
 /* ---------- Responsive ---------- */

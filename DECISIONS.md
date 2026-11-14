@@ -776,3 +776,51 @@
 - Decision: plain CSS plus three small shared React components (`Alert`, `PageHeader`, `EmptyState`) and CSS classes. No CSS framework, component library or icon library; no new dependencies.
 - Why: fewer dependencies and less bundle, the CSP is simple to satisfy, and every style is explainable in an interview.
 - What would change this: needing complex widgets (comboboxes, dialogs) where an accessible library saves real time.
+
+## D-111: react-markdown, no raw HTML
+
+- Context: model answers contain Markdown (bold, lists, code, tables) that previously appeared literally. Answers come from an LLM that reads attacker-controllable repository files, so model output is untrusted (D-053, D-057).
+- Decision: use react-markdown 10.1.0 and remark-gfm 4.0.1, pinned exactly. No rehype-raw, no dangerouslySetInnerHTML and no eval. Raw HTML is never interpreted as active HTML.
+- Why: react-markdown builds React elements from the Markdown syntax tree instead of inserting arbitrary HTML strings into the document. This keeps untrusted model output out of the HTML execution path.
+- Trade-off: inline HTML features such as <details> and <br> are not supported.
+- Supersedes the "no Markdown" trade-off in D-057; D-053 still holds. Tests: server/test/markdown.test.js.
+- What would change this: needing rendered HTML, which would require a separate sanitisation decision first.
+
+## D-112: Link allowlist: only https://github.com/
+
+- Decision: the custom Markdown `a` component is the only code that creates an anchor from answer Markdown, and only when `isGithubUrl(href)` returns true. Every other link, including autolinks, is displayed as text with its URL visible.
+- GitHub anchors use `target="_blank"` and `rel="noopener noreferrer"`, with an accessible new-tab announcement.
+- Why: untrusted model-generated links must not become arbitrary navigable destinations. The same GitHub URL check is used by the sources list.
+- Limit: any HTTPS GitHub URL is allowed, not only links to the currently indexed repository.
+
+## D-113: Images are never loaded from answer Markdown
+
+- Decision: the Markdown `img` component renders alternative text only. It never uses the supplied image URL.
+- Why: a model-chosen image URL could cause a visitor's browser to contact an arbitrary host, creating tracking and information-leak risks. This restriction is an additional layer alongside the Content Security Policy.
+- Trade-off: images embedded in Markdown answers are not displayed.
+
+## D-114: Citations are a remark plugin over text nodes only
+
+- Decision: `remarkCitations` walks the Markdown syntax tree and splits only text nodes. It skips code, inlineCode, html, link, linkReference, image, imageReference and definition nodes.
+- Valid `[n]` and `【n】` markers become `cite-chip` nodes rendered as buttons. Invalid source numbers remain plain text.
+- Annotated forms such as `[n†lines=START-END]` and `【n†lines=START-END】` are accepted for compatibility, but the annotation is discarded. Only the citation number is used.
+- Server-side `extractCitations()` validates citation numbers against the excerpts supplied to the model and normalises valid citations to plain `[n]` markers. Model-generated line annotations are never trusted for source navigation.
+- Source labels, paths and line ranges come from the validated `sources` array, not from model-generated text.
+- This replaces the old `linkifyCitations` regex implementation. Citation tests are covered by `server/test/prompt.test.js` and `server/test/markdown.test.js`.
+- Components are kept in a static object and citation data is passed through React context so re-renders do not unnecessarily remount code blocks.
+- Limit: a chip proves that its number exists in the supplied sources; it does not prove that the associated claim is actually supported (D-058).
+
+## D-115: No syntax highlighting
+
+- Decision: fenced code blocks use monospace text, horizontal scrolling, a language label and a Copy button. No syntax-highlighting dependency is included.
+- Why: a highlighter adds dependencies and bundle weight, and many highlighters are not designed for partial streaming input. A language label and readable code layout provide the required functionality without that additional complexity.
+- What would change this: user feedback that code is difficult to read. Any future highlighter should be small and its bundle impact measured.
+
+## D-116: Markdown bundle size impact
+
+- Added dependencies: react-markdown 10.1.0 and remark-gfm 4.0.1, plus their transitive unified, remark and micromark packages. No other Markdown-related dependencies were added.
+- Measured using the gzip column from `npm run build`.
+- Before Phase 14B: JavaScript 92.52 kB gzip; CSS 3.72 kB gzip.
+- After Phase 14B and citation-navigation fix: JavaScript 145.70 kB gzip; CSS 4.28 kB gzip.
+- Increase: 53.18 kB gzip JavaScript and 0.56 kB gzip CSS.
+- Trade-off: a larger initial JavaScript download in exchange for readable Markdown answers, safe link handling, citation chips and copyable code blocks.
