@@ -40,3 +40,61 @@ export function formatAskError(err) {
   if (typeof err?.message === "string" && err.message) return err.message;
   return "Something went wrong. Try again.";
 }
+
+export const EXAMPLE_QUESTIONS = [
+  "What does this project do?",
+  "Where is authentication handled?",
+  "How is the project structured?",
+];
+
+// Keeps the start and (more of) the end, so the file name survives. Result length <= max.
+export function middleTruncate(text, max = 40) {
+  if (typeof text !== "string") return "";
+  const limit = Math.max(3, Math.floor(max));
+  if (text.length <= limit) return text;
+  const keep = limit - 1;
+  const tail = Math.ceil(keep * 0.6);
+  const head = keep - tail;
+  return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
+}
+
+// Cited first (orderSources), plus the counts for the toggle label.
+export function summarizeSources(sources) {
+  const list = orderSources(sources);
+  const total = list.length;
+  const cited = list.filter((s) => s.cited === true).length;
+  const label =
+    total === 0
+      ? "No sources"
+      : `${total} ${total === 1 ? "source" : "sources"}, ${cited} cited`;
+  return { list, total, cited, label };
+}
+
+const OWNER_RE = /^[A-Za-z0-9-]{1,39}$/;
+const NAME_RE = /^[A-Za-z0-9._-]{1,100}$/;
+
+// Links are built only from validated parts, so a bad value yields null, never a link.
+export function githubRepoUrl(repo) {
+  const owner = repo?.owner;
+  const name = repo?.name;
+  if (typeof owner !== "string" || typeof name !== "string") return null;
+  if (!OWNER_RE.test(owner) || !NAME_RE.test(name)) return null;
+  if (name === "." || name === "..") return null;
+  return `https://github.com/${owner}/${name}`;
+}
+
+export function githubCommitUrl(repo) {
+  const base = githubRepoUrl(repo);
+  const sha = repo?.commitSha;
+  return base && typeof sha === "string" && /^[0-9a-f]{40}$/.test(sha)
+    ? `${base}/commit/${sha}`
+    : null;
+}
+
+export function formatTime(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}

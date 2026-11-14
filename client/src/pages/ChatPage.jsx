@@ -1,118 +1,153 @@
 // SECURITY: answers, questions and server text are rendered as plain text only (D-053, D-057).
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { askStream, getRepo, listMessages } from "../api.js";
 import { ErrorMessage, Spinner, useTitle } from "../components.jsx";
 import AnswerMarkdown from "../components/AnswerMarkdown.jsx";
-import { formatAskError, isGithubUrl, orderSources } from "../chatHelpers.js";
+import RepoInfo from "../components/RepoInfo.jsx";
+import SourcesPanel from "../components/SourcesPanel.jsx";
+import {
+  EXAMPLE_QUESTIONS,
+  formatAskError,
+  formatTime,
+} from "../chatHelpers.js";
 
 const MAX_QUESTION = 500;
+const COUNTER_FROM = 400;
 const PIN_THRESHOLD_PX = 80;
 
-function Answer({ msg, onChip }) {
+function Answer({ msg, onChip, onHover }) {
   if (msg.notFound)
     return (
-      <p className="answer">
-        I couldn't find this in the repository.{" "}
-        <span className="muted">
+      <div className="notice">
+        <p>I couldn't find this in the repository.</p>
+        <p className="muted small">
           Try rephrasing, or mention a file, function or feature by name.
-        </span>
-      </p>
+        </p>
+      </div>
     );
   return (
     <AnswerMarkdown
       text={msg.answer ?? ""}
       sources={msg.sources}
       onCitationClick={(n) => onChip(msg.id, n)}
+      onCitationHover={onHover}
     />
   );
 }
 
-function Sources({ msgId, sources, flash }) {
-  const list = orderSources(sources);
-  if (list.length === 0) return null;
+function Question({ text, time }) {
   return (
-    <div className="sources">
-      <p className="muted small">Sources</p>
-      <ul className="source-list">
-        {list.map((s) => {
-          const label = `${s.path}:${s.startLine}-${s.endLine}`;
-          const key = `${msgId}-${s.n}`;
-          return (
-            <li
-              key={s.n}
-              id={`src-${key}`}
-              className={`source${s.cited ? " cited" : ""}${flash === key ? " flash" : ""}`}
-            >
-              <span className="source-n">[{s.n}]</span>{" "}
-              {isGithubUrl(s.url) ? (
-                <a href={s.url} target="_blank" rel="noopener noreferrer">
-                  {label}
-                </a>
-              ) : (
-                <span>{label}</span>
-              )}{" "}
-              {s.cited && <span className="badge badge-ready">cited</span>}
-            </li>
-          );
-        })}
-      </ul>
+    <div className="q-block">
+      <div className="turn__meta">
+        <span className="label">You asked</span>
+        {time && (
+          <time className="turn__time" dateTime={time.iso}>
+            {time.text}
+          </time>
+        )}
+      </div>
+      <p className="q-text">{text}</p>
     </div>
   );
 }
 
-function Turn({ msg, flash, onChip }) {
+function Turn({ msg, isLatest, target, onChip }) {
+  const [hoverN, setHoverN] = useState(null);
+  const text = formatTime(msg.createdAt);
+  const time = text
+    ? { text, iso: new Date(msg.createdAt).toISOString() }
+    : null;
   return (
     <li className="turn">
-      <p className="q">{msg.question}</p>
-      <Answer msg={msg} onChip={onChip} />
-      {!msg.notFound && (
-        <Sources msgId={msg.id} sources={msg.sources} flash={flash} />
-      )}
-      {msg.usedFallback && (
-        <p className="muted small">
-          Answered by the smaller fallback model because the main one was busy.
-        </p>
-      )}
+      <Question text={msg.question} time={time} />
+      <div className="a-block">
+        <div className="turn__meta">
+          <span className="label">Answer</span>
+          {msg.model && <span className="muted small">{msg.model}</span>}
+        </div>
+        <Answer msg={msg} onChip={onChip} onHover={setHoverN} />
+        {!msg.notFound && (
+          <SourcesPanel
+            msgId={msg.id}
+            sources={msg.sources}
+            isLatest={isLatest}
+            target={target}
+            hoverN={hoverN}
+          />
+        )}
+        {msg.usedFallback && (
+          <p className="muted small">
+            Answered by the smaller fallback model because the main one was
+            busy.
+          </p>
+        )}
+      </div>
     </li>
   );
 }
 
 // The answer being streamed (or a stopped / interrupted one). Not saved server-side.
-function LiveTurn({ live, flash, onChip }) {
+function LiveTurn({ live, target, onChip }) {
+  const [hoverN, setHoverN] = useState(null);
   const streaming = live.status === "streaming";
   return (
     <li className="turn" aria-busy={streaming}>
-      <p className="q">{live.question}</p>
-      {live.text !== "" ? (
-        <Answer
-          msg={{
-            id: "live",
-            answer: live.text,
-            sources: live.sources,
-            notFound: false,
-          }}
-          onChip={onChip}
+      <Question text={live.question} />
+      <div className="a-block">
+        <div className="turn__meta">
+          <span className="label">Answer</span>
+          {streaming && <span className="muted small">writing...</span>}
+          {live.status === "stopped" && (
+            <span className="badge badge-queued">Stopped</span>
+          )}
+          {live.status === "error" && (
+            <span className="badge badge-failed">Interrupted</span>
+          )}
+        </div>
+        {live.text !== "" ? (
+          <Answer
+            msg={{
+              id: "live",
+              answer: live.text,
+              sources: live.sources,
+              notFound: false,
+            }}
+            onChip={onChip}
+            onHover={setHoverN}
+          />
+        ) : (
+          streaming && (
+            <p className="muted">
+              <Spinner /> Searching the code and writing an answer...
+            </p>
+          )
+        )}
+        <SourcesPanel
+          msgId="live"
+          sources={live.sources}
+          isLatest
+          target={target}
+          hoverN={hoverN}
         />
-      ) : (
-        streaming && (
-          <p className="muted">
-            <Spinner /> Searching the code and writing an answer...
+        {live.status === "stopped" && (
+          <p className="status-note">
+            Stopped. This partial answer was not saved.
           </p>
-        )
-      )}
-      <Sources msgId="live" sources={live.sources} flash={flash} />
-      {live.status === "stopped" && (
-        <p className="muted small">
-          Stopped. This partial answer was not saved.
-        </p>
-      )}
-      {live.status === "error" && (
-        <p className="muted small">
-          This answer was cut off and was not saved. Your question is still in
-          the box.
-        </p>
-      )}
+        )}
+        {live.status === "error" && (
+          <p className="status-note">
+            This answer was cut off and was not saved. Your question is still in
+            the box.
+          </p>
+        )}
+      </div>
     </li>
   );
 }
@@ -128,20 +163,21 @@ export default function ChatPage() {
   // { question, text, sources, status: "streaming" | "stopped" | "error" } or null
   const [live, setLive] = useState(null);
   const [error, setError] = useState(null);
-  const [flash, setFlash] = useState(null);
+  const [target, setTarget] = useState(null); // { msgId, n } from a chip click
+  const [away, setAway] = useState(false); // scrolled up from the bottom
   const [announce, setAnnounce] = useState("");
 
   const alive = useRef(false);
   const sending = useRef(false);
-  const abortRef = useRef(null); // AbortController of the stream in flight
-  const textRef = useRef(""); // tokens accumulate here; state is updated once per frame
+  const abortRef = useRef(null);
+  const textRef = useRef("");
   const raf = useRef(0);
-  const pinned = useRef(true); // true while the user is at the bottom
+  const pinned = useRef(true);
   const inputRef = useRef(null);
   const endRef = useRef(null);
-  const flashTimer = useRef(null);
 
   const streaming = live?.status === "streaming";
+  const showJump = away && streaming;
 
   useTitle(
     repo ? `${repo.owner}/${repo.name} · Ask-a-Repo` : "Chat · Ask-a-Repo",
@@ -166,7 +202,6 @@ export default function ChatPage() {
       setLive(syncText);
     });
   }, []);
-  // Silent cancel: no state updates from the aborted send (its active() check fails).
   const cancelStream = useCallback(() => {
     const c = abortRef.current;
     abortRef.current = null;
@@ -180,15 +215,16 @@ export default function ChatPage() {
     return () => {
       alive.current = false;
       cancelStream();
-      clearTimeout(flashTimer.current);
     };
   }, [cancelStream]);
 
   useEffect(() => {
     const onScroll = () => {
-      pinned.current =
+      const atBottom =
         window.innerHeight + window.scrollY >=
         document.documentElement.scrollHeight - PIN_THRESHOLD_PX;
+      pinned.current = atBottom;
+      setAway(!atBottom);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -196,10 +232,11 @@ export default function ChatPage() {
 
   useEffect(() => {
     let cancelled = false;
-    cancelStream(); // switching repos or retrying: drop any stream from the previous view
+    cancelStream();
     setLive(null);
     setError(null);
     setText("");
+    setTarget(null);
     setLoadError(null);
     (async () => {
       try {
@@ -236,30 +273,42 @@ export default function ChatPage() {
     };
   }, [id, navigate, reloadKey, cancelStream]);
 
-  // Keep the bottom in view only while the user has not scrolled up.
+  // The sentinel sits after the composer, so the last message is never behind it.
   useEffect(() => {
     if (pinned.current) endRef.current?.scrollIntoView({ block: "end" });
   }, [repo, messages.length, live]);
 
-  const onChip = useCallback((msgId, n) => {
-    const key = `${msgId}-${n}`;
-    const el = document.getElementById(`src-${key}`);
+  // Auto-grow: CSSOM writes are not blocked by the CSP (D-120). CSS caps the height.
+  useLayoutEffect(() => {
+    const el = inputRef.current;
     if (!el) return;
-    pinned.current = false; // stop the stream auto-scroll fighting this scroll
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [text, repo]);
+
+  const onChip = useCallback((msgId, n) => {
+    pinned.current = false; // stop stream auto-scroll fighting the chip scroll
+    setTarget({ msgId, n });
+  }, []);
+
+  function jump() {
+    pinned.current = true;
+    setAway(false);
     const reduce = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
-    el.scrollIntoView({
+    endRef.current?.scrollIntoView({
+      block: "end",
       behavior: reduce ? "auto" : "smooth",
-      block: "center",
     });
-    clearTimeout(flashTimer.current);
-    setFlash(null); // clear first so clicking the same chip again re-flashes
-    requestAnimationFrame(() => setFlash(key));
-    flashTimer.current = setTimeout(() => setFlash(null), 2000);
-  }, []);
+  }
 
-  // Error or drop: keep the partial text if there is any, otherwise remove the live turn.
+  function pickExample(q) {
+    setText(q);
+    setError(null);
+    inputRef.current?.focus();
+  }
+
   function failLive() {
     flushNow();
     setLive((l) =>
@@ -275,6 +324,7 @@ export default function ChatPage() {
     if (!question) return setError("Enter a question.");
     sending.current = true;
     pinned.current = true;
+    setAway(false);
     textRef.current = "";
     cancelFrame();
     setError(null);
@@ -309,6 +359,7 @@ export default function ChatPage() {
               sources: d.sources ?? [],
               model: d.model,
               usedFallback: d.usedFallback,
+              createdAt: new Date().toISOString(),
             },
           ]);
           setLive(null);
@@ -326,7 +377,7 @@ export default function ChatPage() {
         },
       });
     } catch (err) {
-      if (!active()) return; // unmounted or navigated away: stay silent
+      if (!active()) return;
       if (err.code === "ABORTED") {
         flushNow();
         setLive((l) => l && { ...l, status: "stopped" });
@@ -345,7 +396,7 @@ export default function ChatPage() {
   }
 
   function stop() {
-    abortRef.current?.abort(); // send()'s catch marks the turn stopped
+    abortRef.current?.abort();
   }
 
   function onKeyDown(e) {
@@ -355,18 +406,18 @@ export default function ChatPage() {
     }
   }
 
-  const back = (
-    <Link className="back" to="/repos">
-      ← Back to repositories
-    </Link>
-  );
-
   if (loadError)
     return (
       <>
-        {back}
+        <Link className="back" to="/repos">
+          ← Back to repositories
+        </Link>
         <ErrorMessage message={loadError} />
-        <button type="button" onClick={() => setReloadKey((k) => k + 1)}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => setReloadKey((k) => k + 1)}
+        >
           Retry
         </button>
       </>
@@ -374,76 +425,131 @@ export default function ChatPage() {
   if (!repo)
     return (
       <>
-        {back}
-        <div className="center">
+        <Link className="back" to="/repos">
+          ← Back to repositories
+        </Link>
+        <div className="state">
           <Spinner />
+          <p>Loading conversation...</p>
         </div>
       </>
     );
 
+  const hasTurns = messages.length > 0 || live;
+
   return (
-    <>
-      {back}
-      <h1 className="repo-name">
-        {repo.owner}/{repo.name}
-      </h1>
-      <p className="muted small">
-        Answers cite code at commit {repo.commitSha?.slice(0, 7)}.
-      </p>
+    <div className="chat-layout">
+      <RepoInfo repo={repo} />
+      <div className="chat-main">
+        {/* Announces start and completion only, never individual tokens. */}
+        <div className="sr-only" role="status" aria-live="polite">
+          {announce}
+        </div>
 
-      {/* Announces start and completion only, never individual tokens. */}
-      <div className="sr-only" role="status" aria-live="polite">
-        {announce}
-      </div>
+        {!hasTurns && (
+          <section className="chat-empty" aria-labelledby="empty-title">
+            <h2 id="empty-title">Ask a question about this repository</h2>
+            <p className="muted">
+              Answers cite the exact files and lines they came from. Try one of
+              these:
+            </p>
+            <ul className="examples">
+              {EXAMPLE_QUESTIONS.map((q) => (
+                <li key={q}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => pickExample(q)}
+                  >
+                    {q}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
-      {messages.length === 0 && !live && (
-        <p className="muted">
-          Ask a question about this repository, for example "Where is
-          authentication handled?"
-        </p>
-      )}
-      <ul className="chat-list">
-        {messages.map((m) => (
-          <Turn key={m.id} msg={m} flash={flash} onChip={onChip} />
-        ))}
-        {live && <LiveTurn live={live} flash={flash} onChip={onChip} />}
-      </ul>
-      <div ref={endRef} className="chat-end" />
+        {hasTurns && <h2 className="sr-only">Conversation</h2>}
+        <ul className="chat-list">
+          {messages.map((m, i) => (
+            <Turn
+              key={m.id}
+              msg={m}
+              isLatest={!live && i === messages.length - 1}
+              target={target}
+              onChip={onChip}
+            />
+          ))}
+          {live && <LiveTurn live={live} target={target} onChip={onChip} />}
+        </ul>
 
-      <div className="chat-form">
-        <ErrorMessage message={error} />
-        <label htmlFor="question" className="sr-only">
-          Your question
-        </label>
-        <textarea
-          id="question"
-          ref={inputRef}
-          rows={2}
-          value={text}
-          maxLength={MAX_QUESTION}
-          readOnly={streaming}
-          placeholder="Ask about this repository (Enter to send, Shift+Enter for a new line)"
-          onChange={(e) => {
-            setText(e.target.value);
-            setError(null);
-          }}
-          onKeyDown={onKeyDown}
-        />
-        <div className="chat-meta">
-          <span className="muted small">
-            {text.length}/{MAX_QUESTION}
-          </span>
-          {streaming ? (
-            <button type="button" className="secondary" onClick={stop}>
-              Stop
-            </button>
-          ) : (
-            <button type="button" onClick={send}>
-              Send
+        <div className="composer">
+          {showJump && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm jump"
+              onClick={jump}
+            >
+              ↓ Jump to latest
             </button>
           )}
+          <ErrorMessage message={error} />
+          <label htmlFor="question" className="sr-only">
+            Your question
+          </label>
+          <div className="composer__row">
+            <textarea
+              id="question"
+              ref={inputRef}
+              rows={1}
+              value={text}
+              maxLength={MAX_QUESTION}
+              readOnly={streaming}
+              placeholder="Ask about this repository"
+              aria-describedby="composer-hint"
+              aria-invalid={error ? "true" : undefined}
+              onChange={(e) => {
+                setText(e.target.value);
+                setError(null);
+              }}
+              onKeyDown={onKeyDown}
+            />
+            <div className="composer__actions">
+              {streaming && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={stop}
+                >
+                  Stop
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn"
+                onClick={send}
+                disabled={streaming || text.trim() === ""}
+                aria-busy={streaming}
+              >
+                {streaming ? "Answering" : "Send"}
+              </button>
+            </div>
+          </div>
+          <p id="composer-hint" className="composer__hint">
+            <span className="composer__keys">
+              Enter to send, Shift+Enter for a new line
+            </span>
+            {text.length >= COUNTER_FROM && (
+              <span
+                className={`counter${text.length >= MAX_QUESTION ? " counter--max" : ""}`}
+              >
+                {text.length}/{MAX_QUESTION}
+              </span>
+            )}
+          </p>
         </div>
+        <div ref={endRef} className="chat-end" />
       </div>
-    </>
+    </div>
   );
 }

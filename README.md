@@ -24,6 +24,14 @@ A signed-in user pastes a public GitHub repository URL. The server indexes the s
 
 Supported files: `js`, `jsx`, `ts`, `tsx`, `json`, `md`. Test files are skipped by default (see Evaluation).
 
+## Screenshots
+
+![Login page](docs/images/login.png)
+
+![Repositories page](docs/images/repos.png)
+
+![Chat page with a cited answer](docs/images/chat.png)
+
 ## Architecture
 
 ```mermaid

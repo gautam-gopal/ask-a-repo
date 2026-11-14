@@ -65,7 +65,7 @@ export function Layout() {
   const { user, logout, demo } = useAuth();
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const reading = useMatch("/repos/:id") !== null; // chat page uses the narrow column
+  const chat = useMatch("/repos/:id") !== null; // chat page: no bottom padding, sticky composer
 
   async function onLogout() {
     setBusy(true);
@@ -130,7 +130,7 @@ export function Layout() {
       <main
         id="main"
         tabIndex={-1}
-        className={`page${reading ? " page--reading" : ""}`}
+        className={`page${chat ? " page--chat" : ""}`}
       >
         <ErrorMessage message={error} />
         <Outlet />

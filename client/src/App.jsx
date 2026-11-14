@@ -6,6 +6,7 @@ import { Layout, Spinner, WakingBanner } from "./components.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import ReposPage from "./pages/ReposPage.jsx";
 import ChatPage from "./pages/ChatPage.jsx";
+import NotFoundPage from "./pages/NotFoundPage.jsx";
 
 function RequireAuth() {
   const { status } = useAuth();
@@ -39,7 +40,8 @@ export default function App() {
             <Route path="/repos/:id" element={<ChatPage />} />
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/repos" replace />} />
+        <Route path="/" element={<Navigate to="/repos" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>
   );

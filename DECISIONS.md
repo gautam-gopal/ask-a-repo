@@ -824,3 +824,44 @@
 - After Phase 14B and citation-navigation fix: JavaScript 145.70 kB gzip; CSS 4.28 kB gzip.
 - Increase: 53.18 kB gzip JavaScript and 0.56 kB gzip CSS.
 - Trade-off: a larger initial JavaScript download in exchange for readable Markdown answers, safe link handling, citation chips and copyable code blocks.
+
+## D-117: Two-column chat layout, breakpoint 1100px
+
+- Context: the chat was a single 800px column with the repo name above it, and the repo facts were not visible while reading.
+- Decision: from 1100px, a CSS grid inside the normal 1200px page container: conversation up to 820px (answer text keeps the 75ch measure from 14B) plus a 280px sticky repository sidebar. Below 1100px the same component is a compact strip above the conversation, switched by CSS only (no JS media query, no second component).
+- Why 1100: at 1100 the content box is 1052px, so the conversation track shrinks to about 740px, which still reads well. Below that a 280px sidebar costs too much width. At 1920 the 1200px container keeps the pair centred, so it does not look stretched.
+- Links: owner/name and the short commit SHA link to GitHub (new tab, noopener noreferrer). URLs are built only from validated owner, name and 40-hex SHA (githubRepoUrl, githubCommitUrl).
+- Layout shift: the cold-start banner became a fixed toast, so it no longer pushes the page down.
+- What would change this: a feature that needs the sidebar space (file tree, history list).
+
+## D-118: Conversation blocks, not chat bubbles
+
+- Decision: the question is a compact tinted block with a "You asked" label and a timestamp. The answer is a full-width block on the page surface with an "Answer" label and the model name in muted small text. A thin divider separates turns. Not-found is a calm neutral notice with the rephrase hint. Stopped and interrupted live turns carry a Stopped or Interrupted badge plus a sentence saying nothing was saved.
+- Why: answers contain code blocks and tables that need the full width; bubbles waste it and add clutter.
+- Timestamps come from the saved message. A just-finished answer gets a client time, which the next reload replaces with the server time.
+
+## D-119: Sources section behaviour
+
+- Decision: one collapsible section per answer, labelled "N sources, M cited". Open by default only for the latest answer; older ones are collapsed. The default is derived (`userOpen ?? isLatest`), so when a new answer arrives the previous one collapses unless the user toggled it. Cited sources come first with a "cited" badge and the same [n] as the chips; uncited ones are quieter and say "retrieved, not cited".
+- Paths: truncated in the middle (the file name survives) for display; the full path is in the title and in a screen-reader-only span, so the accessible name is the full path.
+- Chip click: expands if collapsed, scrolls the row to the centre, focuses the row without a second scroll, and fades a background highlight. Chip hover highlights the row. The fade is a CSS transition, so prefers-reduced-motion switches it off through the existing global rule.
+- Allowlist unchanged: only https://github.com/ URLs become anchors, with target and rel as before.
+
+## D-120: Sticky composer
+
+- Decision: `position: sticky; bottom: 0` inside the conversation column, not fixed. The scroll sentinel sits after the composer, so auto-scroll never leaves the last message behind it. Textarea auto-grows by writing `style.height` through the CSSOM (capped at 10rem by CSS). The CSP blocks inline style attributes, not CSSOM writes, but this is the one place that relies on that (see D-108); the console check in the verify list covers it.
+- Counter shows only from 400 of 500 characters. The Enter and Shift+Enter hint is hidden on touch devices. Safe-area padding needs `viewport-fit=cover`, now in index.html.
+- Send is disabled while streaming or empty and shows the busy spinner; Stop appears next to it during streaming.
+- Scroll pinning from Phase 9 is kept. A "Jump to latest" button appears only while streaming and scrolled away from the bottom.
+- The question stays in the box on every error, as in D-059.
+
+## D-121: Example questions
+
+- Decision: three generic questions shown in an empty conversation: "What does this project do?", "Where is authentication handled?", "How is the project structured?". Clicking fills the composer and focuses it; it never sends.
+- Why not send on click: every send spends embedding and LLM quota, and the user may want to edit.
+- Limit: the questions are generic, so on a repo with no auth code the second one returns not-found.
+
+## D-122: Intentionally not done in Phase 14
+
+- Dark theme (D-109), syntax highlighting (D-115), animations beyond the source highlight fade and the spinner, a UI library (D-110), a virtualised message list, a client-side test runner for components, per-visitor demo history (D-103).
+- Also: the 404 page is client-side only; the server still answers 200 with index.html for unknown non-API paths.
